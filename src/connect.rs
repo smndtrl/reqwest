@@ -229,7 +229,7 @@ impl Connector {
                     let io = tls_connector.connect(&host, conn).await?;
                     let io = TokioIo::new(io);
                     return Ok(Conn {
-                        inner: self.verbose.wrap(NativeTlsConn { inner: io }),
+                        inner: self.verbose.wrap(io /*NativeTlsConn { inner: io }*/),
                         is_proxy: false,
                         tls_info: self.tls_info,
                     });
