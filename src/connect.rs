@@ -1141,6 +1141,8 @@ mod verbose {
                     */
                     log::trace!("TODO: verbose poll_read");
                     Poll::Ready(Ok(()))
+                    */
+                    todo!("verbose poll_read");
                 }
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Pending => Poll::Pending,
