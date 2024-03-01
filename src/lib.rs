@@ -386,9 +386,9 @@ if_wasi_http! {
         Body, Client, ClientBuilder, Request, RequestBuilder, Response
     };
     pub use self::proxy::{Proxy,NoProxy};
-    // #[cfg(feature = "__tls")]
-    // // Re-exports, to be removed in a future release
-    // pub use tls::{Certificate, Identity};
+    #[cfg(feature = "__tls")]
+    // Re-exports, to be removed in a future release
+    pub use tls::{Certificate, Identity};
     // #[cfg(feature = "multipart")]
     // pub use self::async_impl::multipart;
 
@@ -403,7 +403,7 @@ if_wasi_http! {
     // pub mod dns;
     mod proxy;
     pub mod redirect;
-    // #[cfg(feature = "__tls")]
-    // pub mod tls;
+    #[cfg(feature = "__tls")]
+    pub mod tls;
     mod util;
 }

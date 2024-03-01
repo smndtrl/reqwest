@@ -1,6 +1,7 @@
 {
     "rust-analyzer.showUnlinkedFileNotification": false,
     "rust-analyzer.check.features": [
+
         "wasi-http",
         "stream"
     ],
@@ -11,6 +12,8 @@
     "rust-analyzer.cargo.features": [
         "wasi-http",
         "stream",
-        "gzip", "brotli", "deflate"
-    ]
+        "gzip", "brotli", "deflate",
+        "rustls-tls"
+    ],
+    "rust-analyzer.cargo.noDefaultFeatures": true
 }
