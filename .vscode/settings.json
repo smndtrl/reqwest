@@ -10,6 +10,7 @@
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.cargo.features": [
         "wasi-http",
-        "stream"
+        "stream",
+        "gzip", "brotli", "deflate"
     ]
 }

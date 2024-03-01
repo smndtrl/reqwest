@@ -43,7 +43,7 @@ rustls-tls-manual-roots = ["__rustls"]
 rustls-tls-webpki-roots = ["webpki-roots", "__rustls"]
 rustls-tls-native-roots = ["rustls-native-certs", "__rustls"]
 
-blocking = ["futures-util/io", "tokio/rt-multi-thread", "tokio/sync"]
+blocking = ["futures-util/io", "tokio/rt", "tokio/sync"]
 
 cookies = ["cookie_crate", "cookie_store"]
 
@@ -199,6 +199,10 @@ wit-bindgen = { version = "0.18" }
 anyhow = "1"
 async-trait = "0.1.74"
 spin-sdk = { git = "https://github.com/smndtrl/spin-rust-sdk" }
+
+# compression
+async-compression = { version = "0.4.0", default-features = false, features = ["futures-io"], optional = true }
+tokio-util = { version = "0.7.1", default-features = false, features = ["codec", "io"], optional = true }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies.web-sys]
 version = "0.3.25"
