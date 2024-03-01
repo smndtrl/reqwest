@@ -39,12 +39,12 @@ use crate::cookie;
 use crate::error;
 use crate::into_url::{expect_uri, try_uri};
 use crate::redirect::{self, remove_sensitive_headers};
-// #[cfg(feature = "__tls")]
-// use crate::tls::{self, TlsBackend};
+#[cfg(feature = "__tls")]
+use crate::tls::{self, TlsBackend};
 // #[cfg(feature = "__tls")]
 // use crate::Certificate;
-// #[cfg(any(feature = "native-tls", feature = "__rustls"))]
-// use crate::Identity;
+#[cfg(any(feature = "native-tls", feature = "__rustls"))]
+use crate::Identity;
 use crate::{IntoUrl, Method, Proxy, StatusCode, Url};
 use log::{debug, trace};
 // #[cfg(feature = "http3")]
@@ -116,14 +116,14 @@ struct Config {
     // root_certs: Vec<Certificate>,
     // #[cfg(feature = "__tls")]
     // tls_built_in_root_certs: bool,
-    // #[cfg(feature = "__tls")]
-    // min_tls_version: Option<tls::Version>,
-    // #[cfg(feature = "__tls")]
-    // max_tls_version: Option<tls::Version>,
+    #[cfg(feature = "__tls")]
+    min_tls_version: Option<tls::Version>,
+    #[cfg(feature = "__tls")]
+    max_tls_version: Option<tls::Version>,
     // #[cfg(feature = "__tls")]
     // tls_info: bool,
-    // #[cfg(feature = "__tls")]
-    // tls: TlsBackend,
+    #[cfg(feature = "__tls")]
+    tls: TlsBackend,
     http_version_pref: HttpVersionPref,
     http09_responses: bool,
     http1_title_case_headers: bool,
@@ -199,16 +199,16 @@ impl ClientBuilder {
                 // root_certs: Vec::new(),
                 // #[cfg(feature = "__tls")]
                 // tls_built_in_root_certs: true,
-                // #[cfg(any(feature = "native-tls", feature = "__rustls"))]
-                // identity: None,
-                // #[cfg(feature = "__tls")]
-                // min_tls_version: None,
-                // #[cfg(feature = "__tls")]
-                // max_tls_version: None,
+                #[cfg(any(feature = "native-tls", feature = "__rustls"))]
+                identity: None,
+                #[cfg(feature = "__tls")]
+                min_tls_version: None,
+                #[cfg(feature = "__tls")]
+                max_tls_version: None,
                 // #[cfg(feature = "__tls")]
                 // tls_info: false,
-                // #[cfg(feature = "__tls")]
-                // tls: TlsBackend::default(),
+                #[cfg(feature = "__tls")]
+                tls: TlsBackend::default(),
                 http_version_pref: HttpVersionPref::All,
                 http09_responses: false,
                 http1_title_case_headers: false,
@@ -962,19 +962,19 @@ impl ClientBuilder {
     ///
     /// This requires the optional `default-tls`, `native-tls`, or `rustls-tls(-...)`
     /// feature to be enabled.
-    // #[cfg(feature = "__tls")]
-    // #[cfg_attr(
-    //     docsrs,
-    //     doc(cfg(any(
-    //         feature = "default-tls",
-    //         feature = "native-tls",
-    //         feature = "rustls-tls"
-    //     )))
-    // )]
-    // pub fn min_tls_version(mut self, version: tls::Version) -> ClientBuilder {
-    //     self.config.min_tls_version = Some(version);
-    //     self
-    // }
+    #[cfg(feature = "__tls")]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(
+            feature = "default-tls",
+            feature = "native-tls",
+            feature = "rustls-tls"
+        )))
+    )]
+    pub fn min_tls_version(mut self, version: tls::Version) -> ClientBuilder {
+        self.config.min_tls_version = Some(version);
+        self
+    }
 
     /// Set the maximum allowed TLS version for connections.
     ///

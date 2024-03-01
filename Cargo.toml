@@ -220,8 +220,17 @@ anyhow = "1"
 async-trait = "0.1.74"
 spin-sdk = { git = "https://github.com/smndtrl/spin-rust-sdk" }
 
+# rustls-tls
+# hyper-rustls = { version = "0.26.0", default-features = false, optional = true }
+rustls = { version = "0.22.2", optional = true }
+rustls-pki-types = { version = "1.1.0", features = ["alloc"] ,optional = true }
+# tokio-rustls = { version = "0.25", optional = true }
+# webpki-roots = { version = "0.26.0", optional = true }
+# rustls-native-certs = { version = "0.6", optional = true }
+rustls-pemfile = { version = "1.0", optional = true }
+
 # compression
-async-compression = { version = "0.4.0", default-features = false, features = ["futures-io"], optional = true }
+async-compression = { version = "0.4.0", default-features = false, features = ["tokio"], optional = true }
 tokio-util = { version = "0.7.1", default-features = false, features = ["codec", "io"], optional = true }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies.web-sys]
