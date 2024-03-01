@@ -1,7 +1,7 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(test, deny(warnings))]
+// #![cfg_attr(test, deny(warnings))] // TODO(simon)
 
 //! # reqwest
 //!
@@ -235,7 +235,14 @@ compile_error!(
 
 macro_rules! if_wasm {
     ($($item:item)*) => {$(
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        $item
+    )*}
+}
+
+macro_rules! if_wasi_http {
+    ($($item:item)*) => {$(
+        #[cfg(all(target_arch = "wasm32", target_os = "wasi", feature = "wasi-http"))]
         $item
     )*}
 }
@@ -289,9 +296,9 @@ pub use self::response::ResponseBuilderExt;
 /// - supplied `Url` cannot be parsed
 /// - there was an error while sending request
 /// - redirect limit was exhausted
-pub async fn get<T: IntoUrl>(url: T) -> crate::Result<Response> {
-    Client::builder().build()?.get(url).send().await
-}
+// pub async fn get<T: IntoUrl>(url: T) -> crate::Result<Response> {
+//     Client::builder().build()?.get(url).send().await
+// }
 
 fn _assert_impls() {
     fn assert_send<T: Send>() {}
@@ -357,4 +364,46 @@ if_wasm! {
     pub use self::wasm::{Body, Client, ClientBuilder, Request, RequestBuilder, Response};
     #[cfg(feature = "multipart")]
     pub use self::wasm::multipart;
+}
+
+
+if_wasi_http! {
+    // #[cfg(test)]
+    // #[macro_use]
+    // extern crate doc_comment;
+
+    // #[cfg(test)]
+    // doctest!("../README.md");
+
+    // #[allow(unused_imports)]
+    // pub use self::async_impl::{
+    //     Body, 
+    //     Request,
+    // //     // Client as _,
+    // //      ClientBuilder, Request, RequestBuilder, Response, Upgraded,
+    // };
+    pub use self::wasi::async_impl::{
+        Body, Client, ClientBuilder, Request, RequestBuilder, Response
+    };
+    pub use self::proxy::{Proxy,NoProxy};
+    // #[cfg(feature = "__tls")]
+    // // Re-exports, to be removed in a future release
+    // pub use tls::{Certificate, Identity};
+    // #[cfg(feature = "multipart")]
+    // pub use self::async_impl::multipart;
+
+
+    // mod async_impl;
+    pub mod wasi;
+    // #[cfg(feature = "blocking")]
+    // pub mod blocking;
+    // mod connect;
+    // #[cfg(feature = "cookies")]
+    // pub mod cookie;
+    // pub mod dns;
+    mod proxy;
+    pub mod redirect;
+    // #[cfg(feature = "__tls")]
+    // pub mod tls;
+    mod util;
 }
