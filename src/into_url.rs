@@ -81,6 +81,18 @@ if_hyper! {
     }
 }
 
+if_wasi_http! {
+    pub(crate) fn expect_uri(url: &Url) -> http::Uri {
+        url.as_str()
+            .parse()
+            .expect("a parsed Url should always be a valid Uri")
+    }
+
+    pub(crate) fn try_uri(url: &Url) -> Option<http::Uri> {
+        url.as_str().parse().ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

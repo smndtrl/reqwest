@@ -1,0 +1,15 @@
+{
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "rust-analyzer.check.features": [
+        "wasi-http",
+        "stream"
+    ],
+    "rust-analyzer.check.targets": "wasm32-wasi",
+    "rust-analyzer.diagnostics.experimental.enable": true,
+    "rust-analyzer.lens.references.trait.enable": true,
+    "rust-analyzer.check.allTargets": false,
+    "rust-analyzer.cargo.features": [
+        "wasi-http",
+        "stream"
+    ]
+}
