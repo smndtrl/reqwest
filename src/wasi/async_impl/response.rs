@@ -15,30 +15,32 @@ use tokio::time::Sleep;
 use url::Url;
 
 use super::body::{Body, ResponseBody};
-use crate::wasi::async_impl::wasi_http::InnerBody;
 use super::decoder::{Accepts, Decoder};
 #[cfg(feature = "cookies")]
 use crate::cookie;
 
-use spin_sdk::http::{Response as SpinResponse};
 
+// use wasi_http_client::Response as WasiResponse;
+use futures_util::StreamExt;
 // pub type InnerResponseBody = Box<Vec<u8>>;
 use http_body_util::combinators::BoxBody;
 pub type InnerResponseBody = BoxBody<Bytes, crate::Error>;
 /// A Response to a submitted `Request`.
 pub struct Response {
-    pub(super) res: SpinResponse,
+    // pub(super) res: WasiResponse,
+    pub(super) res: hyper::Response<http_body_util::Full<Bytes>>,
     // Boxed to save space (11 words to 1 word), and it's not accessed
     // frequently internally.
     url: Box<Url>,
+    // headermap: HeaderMap
 }
 
 impl Response {
     pub(super) fn new(
-        res: SpinResponse,
-        url: Url,
-        accepts: Accepts,
-        timeout: Option<Pin<Box<Sleep>>>,
+        res: hyper::Response<http_body_util::Full<Bytes>>,
+        // url: Url,
+        // accepts: Accepts,
+        // timeout: Option<Pin<Box<Sleep>>>,
     ) -> Response {
         // let (mut parts, body) = res.into_parts();
         // let decoder = Decoder::detect(
@@ -48,16 +50,25 @@ impl Response {
         // );
         // let res = hyper::Response::from_parts(parts, decoder);
 
+        // let a = res.headers().iter().fold(HeaderMap::new(), |mut acc, (k, v)| {
+        //     let key = http::HeaderName::from_lowercase(k.as_bytes()).unwrap();
+        //     let value = String::from_utf8(v.to_vec()).unwrap().parse().unwrap();
+        //     acc.insert(key, value);
+        //     acc
+        // });
+
         Response {
             res,
-            url: Box::new(url),
+            // headermap: a,
+            url: Box::new(Url::parse("http://localhost").unwrap()),
         }
     }
 
     /// Get the `StatusCode` of this `Response`.
     #[inline]
     pub fn status(&self) -> StatusCode {
-        http::StatusCode::from_u16(self.res.status().clone()).unwrap()
+        // http::StatusCode::from_u16(self.res.status().clone()).unwrap() // TODO(simon): fix
+        http::StatusCode::from_u16(200).unwrap()
     }
 
     /// Get the HTTP `Version` of this `Response`.
@@ -69,24 +80,15 @@ impl Response {
 
     /// Get the `Headers` of this `Response`.
     #[inline]
-    pub fn headers(&self) -> HeaderMap {
-        self.res.headers().fold(HeaderMap::new(), |mut acc, (k, v)| {
-            let key = http::HeaderName::from_lowercase(k.as_bytes()).unwrap();
-            let value = v.clone().into_utf8_lossy().parse().unwrap();
-            acc.insert(key, value);
-            acc
-        })
-
+    pub fn headers(&self) -> &HeaderMap {
+        &self.res.headers()
     }
 
     /// Get a mutable reference to the `Headers` of this `Response`.
     // #[inline]
     // pub fn headers_mut(&mut self) -> &mut HeaderMap {
-    //     // self.res.headers_mut()
-    //     &mut self.res.headers().fold(HeaderMap::new(), |mut acc, (k, v)| {
-    //         acc.insert(k, v.into_utf8_lossy().parse().unwrap());
-    //         acc
-    //     })
+    //     self.res.headers_mut()
+
     // }
 
     /// Get the content-length of this response, if known.
@@ -99,8 +101,8 @@ impl Response {
     pub fn content_length(&self) -> Option<u64> {
         use hyper::body::Body;
 
-        Some(self.res.body().len() as u64)
-        // Body::size_hint(self.res.body()).exact()
+        // Some(self.res.content_length() as u64)
+        Body::size_hint(self.res.body()).exact()
     }
 
     /// Retrieve the cookies contained in the response.
@@ -197,12 +199,9 @@ impl Response {
     /// ```
     pub async fn text_with_charset(self, default_encoding: &str) -> crate::Result<String> {
         let content_type = self
-            // .headers()
-            // .get(crate::header::CONTENT_TYPE)
-            .res
-            .header(crate::header::CONTENT_TYPE.as_str())
-            .and_then(|value| value.as_str())
-            // .and_then(|value| value.to_str().ok())
+            .headers()
+            .get(crate::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<Mime>().ok());
         let encoding_name = content_type
             .as_ref()
@@ -280,14 +279,13 @@ impl Response {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn bytes(self) -> crate::Result<Bytes> {
+    pub async fn bytes(mut self) -> crate::Result<Bytes> {
         use http_body_util::BodyExt;
 
-        // BodyExt::collect(self.res.into_body())
-        //     .await
-        //     .map(|buf| buf.to_bytes())
-        //     .map_err(crate::error::body)
-        Ok(Bytes::from(self.res.into_body()))
+        BodyExt::collect(self.res.into_body())
+            .await
+            .map(|buf| buf.to_bytes())
+            .map_err(|e| todo!())
     }
 
     /// Stream a chunk of the response body.
@@ -348,7 +346,9 @@ impl Response {
     #[cfg(feature = "stream")]
     #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
     pub fn bytes_stream(self) -> impl futures_core::Stream<Item = crate::Result<Bytes>> {
-        super::body::DataStream(Body::reusable(Bytes::from(self.res.into_body())))
+        let d = self.res.into_body();
+ 
+        super::body::DataStream(d)
     }
 
     // util methods
@@ -431,7 +431,7 @@ impl fmt::Debug for Response {
         f.debug_struct("Response")
             .field("url", self.url())
             .field("status", &self.status())
-            .field("headers", &self.res.headers().map(|(k,v)| format!("{}={:?}", k, v)).collect::<Vec<String>>().join(", "))
+            .field("headers", &self.res.headers().iter().map(|(k,v)| format!("{}={:?}", k, v)).collect::<Vec<String>>().join(", "))
             .finish()
     }
 }
@@ -463,8 +463,14 @@ impl<T: Into<Body>> From<http::Response<T>> for Response {
 /// A `Response` can be piped as the `Body` of another request.
 impl From<Response> for Body {
     fn from(r: Response) -> Body {
-        // Body::streaming(r.res.into_body())
-        Body::reusable(Bytes::from(r.res.into_body()))
+        Body::streaming(r.res.into_body())
+        // Body::reusable(Bytes::from(r.res.into_body()))
+    }
+}
+
+impl From<std::convert::Infallible> for crate::Error {
+    fn from(_: std::convert::Infallible) -> Self { 
+        crate::error::body("infallible")
     }
 }
 

@@ -308,11 +308,35 @@ pub(crate) fn response(
 
 // ===== impl DataStream =====
 
+// impl<B> futures_core::Stream for DataStream<B>
+// where
+//     B: HttpBody<Data = Bytes> + Unpin,
+// {
+//     type Item = Result<Bytes, B::Error>;
+
+//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+//         loop {
+//             return match futures_core::ready!(Pin::new(&mut self.0).poll_frame(cx)) {
+//                 Some(Ok(frame)) => {
+//                     // skip non-data frames
+//                     if let Ok(buf) = frame.into_data() {
+//                         Poll::Ready(Some(Ok(buf)))
+//                     } else {
+//                         continue;
+//                     }
+//                 }
+//                 Some(Err(err)) => Poll::Ready(Some(Err(err))),
+//                 None => Poll::Ready(None),
+//             };
+//         }
+//     }
+// }
+
 impl<B> futures_core::Stream for DataStream<B>
 where
     B: HttpBody<Data = Bytes> + Unpin,
 {
-    type Item = Result<Bytes, B::Error>;
+    type Item = Result<Bytes, crate::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         loop {
@@ -325,7 +349,7 @@ where
                         continue;
                     }
                 }
-                Some(Err(err)) => Poll::Ready(Some(Err(err))),
+                Some(Err(err)) => Poll::Ready(Some(Err(crate::error::body("lol")))),
                 None => Poll::Ready(None),
             };
         }

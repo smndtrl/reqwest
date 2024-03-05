@@ -512,7 +512,7 @@ impl RequestBuilder {
         println!("sending...");
         match self.request {
             Ok(req) => self.client.execute_request(req),
-            Err(err) => Pending::new_err(err),
+            Err(err) => todo!() //Pending::new_err(err),
         }
     }
 

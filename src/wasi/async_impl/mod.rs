@@ -11,5 +11,5 @@ pub mod response;
 pub mod body;
 pub mod decoder;
 // mod conversions;
-pub mod executor;
-mod wasi_http;
+// pub mod executor;
+// mod wasi_http;
