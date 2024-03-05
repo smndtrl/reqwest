@@ -53,7 +53,17 @@ use log::{debug, trace};
 // use quinn::VarInt;
 
 #[cfg(feature = "wasi-http")]
-use super::wasi_http::{Client as InnerWasiHttpClient, WasiHttpResponseFuture};
+// use super::wasi_http::{Client as InnerWasiHttpClient, WasiHttpResponseFuture};
+// use wasi_http_client::{
+//     Client as WasiClient, 
+//     Method as WasiMethod, 
+//     Request as WasiRequest, 
+//     Response as WasiResponse
+// };
+use spin_sdk::http::{
+    Request as SpinRequest, RequestBuilder as SpinRequestBuilder,
+    Response as SpinResponse, ResponseBuilder as SpinResponseBuilder,
+};
 // use super::shim::{HyperShim, WasiHttpResponseFuture};
 
 // type HyperResponseFuture = hyper_util::client::legacy::ResponseFuture;
@@ -271,8 +281,6 @@ impl ClientBuilder {
                     }
                     None => None,
                 },
-                #[cfg(feature = "wasi-http")]
-                wasi_http: WasiHttpClient::new(),
                 // hyper: builder.build(connector),
                 headers: config.headers,
                 redirect_policy: config.redirect_policy,
@@ -1243,12 +1251,6 @@ impl ClientBuilder {
     }
 }
 
-#[cfg(feature = "wasi-http")]
-// type HyperClient = hyper_util::client::legacy::Client<Connector, super::Body>;
-type WasiHttpClient = InnerWasiHttpClient;
-
-// type HyperClient = hyper_util::client::legacy::Client<Connector, super::Body>;
-
 
 impl Default for Client {
     fn default() -> Self {
@@ -1361,106 +1363,211 @@ impl Client {
         request: Request,
     ) -> impl Future<Output = Result<Response, crate::Error>> {
         self.execute_request(request)
+
+
+
+        // async move {
+        //     wasi_async_runtime::block_on( |reactor| async {
+        //         let client = WasiClient::new(reactor);
+    
+        //         let url = "https://example.com".parse().unwrap();
+        //         let req = WasiRequest::new(WasiMethod::Get, url);
+        //         let res = client.send(req).await;
+        
+        //         // let body = read_to_end(res).await;
+        //         Ok(Self::into_response(res))
+        //     })
+        // }
+        
+
     }
 
-    pub(super) fn execute_request(&self, req: Request) -> Pending {
-        let (method, url, mut headers, body, timeout, version) = req.pieces();
-        if url.scheme() != "http" && url.scheme() != "https" {
-            return Pending::new_err(error::url_bad_scheme(url));
+    fn into_spin_request(request: Request) -> SpinRequest {
+        let mut spin_request = SpinRequestBuilder::new(request.method().clone().into(), request.url().as_str());
+        spin_request.headers(request.headers());
+        if let Some(body) = request.body() {
+            spin_request.body(body.as_bytes().expect("no body bytes").to_vec());
+        } else {
+            
         }
+        
 
-        // check if we're in https_only mode and check the scheme of the current URL
-        if self.inner.https_only && url.scheme() != "https" {
-            return Pending::new_err(error::url_bad_scheme(url));
-        }
+        spin_request.build()
+    }
 
-        // insert default headers in the request headers
-        // without overwriting already appended headers.
-        for (key, value) in &self.inner.headers {
-            if let Entry::Vacant(entry) = headers.entry(key) {
-                entry.insert(value.clone());
-            }
-        }
+    fn spin_response_to_hyper_response(response: SpinResponse) -> http::Response<http_body_util::Full<Bytes>> {
+        let builder = hyper::Response::builder();
 
-        // Add cookies from the cookie store.
-        #[cfg(feature = "cookies")]
-        {
-            if let Some(cookie_store) = self.inner.cookie_store.as_ref() {
-                if headers.get(crate::header::COOKIE).is_none() {
-                    add_cookie_header(&mut headers, &**cookie_store, &url);
-                }
-            }
-        }
+  
+        let rawbody = response.into_body();
+        let body = http_body_util::Full::new(Bytes::from(rawbody));
+        let res = builder.body(body).unwrap();
+        res
+    }
 
-        let accept_encoding = self.inner.accepts.as_str();
+    // fn spin_response_to_http_response<B: hyper::body::Body>(response: SpinResponse) -> http::Response<B> {
+    //     let builder = http::Response::builder();
 
-        if let Some(accept_encoding) = accept_encoding {
-            if !headers.contains_key(ACCEPT_ENCODING) && !headers.contains_key(RANGE) {
-                headers.insert(ACCEPT_ENCODING, HeaderValue::from_static(accept_encoding));
-            }
-        }
+    //     // let fbody = hyper::body::Incoming()
+    //     let rawbody = response.body();
+    //     let body = http_body_util::Full::new(rawbody);
+    //     builder.body(body).unwrap()
+    // }
 
-        let uri = expect_uri(&url);
+    fn from_spin_response(response: SpinResponse) -> Response {
+        let http_response = Self::spin_response_to_hyper_response(response);
+        let reqwest_response = Response::new(http_response);
+        reqwest_response
+    }
 
-        let (reusable, body) = match body {
-            Some(body) => {
-                let (reusable, body) = body.try_reuse();
-                (Some(reusable), body)
-            }
-            None => (None, Body::empty()),
-        };
+    // fn into_request(request: Request) -> WasiRequest {
+    //     let url = request.url();
+    //     let method = match request.method() {
+    //         &Method::GET => WasiMethod::Get,
+    //         &Method::HEAD => WasiMethod::Head,
+    //         &Method::POST => WasiMethod::Post,
+    //         &Method::PUT => WasiMethod::Put,
+    //         &Method::DELETE => WasiMethod::Delete,
+    //         &Method::CONNECT => WasiMethod::Connect,
+    //         &Method::OPTIONS => WasiMethod::Options,
+    //         &Method::TRACE => WasiMethod::Trace,
+    //         &Method::PATCH => WasiMethod::Patch,
+    //         s => WasiMethod::Other(s.to_string()),
+    //     };
 
-        self.proxy_auth(&uri, &mut headers);
 
-        let builder = hyper::Request::builder()
-            .method(method.clone())
-            .uri(uri)
-            .version(version);
+    //     let request = WasiRequest::new(method, url.clone());
 
-        let in_flight = match version {
-            #[cfg(feature = "http3")]
-            http::Version::HTTP_3 if self.inner.h3_client.is_some() => {
-                let mut req = builder.body(body).expect("valid request parts");
-                *req.headers_mut() = headers.clone();
-                ResponseFuture::H3(self.inner.h3_client.as_ref().unwrap().request(req))
-            }
-            #[cfg(feature = "wasi-http")]
-            _ => {
-                let mut req = builder.body(body).expect("valid request parts");
-                *req.headers_mut() = headers.clone();
-                ResponseFuture::WasiHttp(self.inner.wasi_http.request(req))
-            }
-            // #[cfg(not(feature = "wasi-http"))]
-            // _ => {
-            //     let mut req = builder.body(body).expect("valid request parts");
-            //     *req.headers_mut() = headers.clone();
-            //     ResponseFuture::Default(self.inner.hyper.request(req))
-            // }
-        };
+    //     request
+    // }
 
-        let timeout = timeout
-            .or(self.inner.request_timeout)
-            .map(tokio::time::sleep)
-            .map(Box::pin);
+    // fn into_response(response: WasiResponse) -> Response {
+    //     Response::new(response)
+    // }
 
-        Pending {
-            inner: PendingInner::Request(PendingRequest {
-                method,
-                url,
-                headers,
-                body: reusable,
-
-                urls: Vec::new(),
-
-                retry_count: 0,
-
-                client: self.inner.clone(),
-
-                in_flight,
-                timeout,
-            }),
+    #[cfg(feature = "wasi-http")]
+    pub(super) fn execute_request(&self, req: Request) -> 
+    impl Future<Output = Result<Response, crate::Error>>  {
+        async move {
+            // /// wasi-http-client
+            // wasi_async_runtime::block_on( |reactor| async {
+            //     let client = WasiClient::new(reactor);
+    
+            //     // let url = "https://example.com".parse().unwrap();
+            //     // let req = Self::into_request(req);
+            //     let req: http::Request::<crate::Body> = req.try_into().unwrap();
+            //     let res = client.send_flex(req).await;
+        
+            //     // let body = read_to_end(res).await;
+            //     Ok(Self::into_response(res))
+            // })
+            let req = Self::into_spin_request(req);
+            let res: SpinResponse = spin_sdk::http::send(req).await.unwrap();
+            Ok(Self::from_spin_response(res))
+            // todo!()
         }
     }
+
+    // #[cfg(not(feature = "wasi-http"))]
+    // pub(super) fn execute_request(&self, req: Request) -> Pending {
+    //     let (method, url, mut headers, body, timeout, version) = req.pieces();
+    //     if url.scheme() != "http" && url.scheme() != "https" {
+    //         return Pending::new_err(error::url_bad_scheme(url));
+    //     }
+
+    //     // check if we're in https_only mode and check the scheme of the current URL
+    //     if self.inner.https_only && url.scheme() != "https" {
+    //         return Pending::new_err(error::url_bad_scheme(url));
+    //     }
+
+    //     // insert default headers in the request headers
+    //     // without overwriting already appended headers.
+    //     for (key, value) in &self.inner.headers {
+    //         if let Entry::Vacant(entry) = headers.entry(key) {
+    //             entry.insert(value.clone());
+    //         }
+    //     }
+
+    //     // Add cookies from the cookie store.
+    //     #[cfg(feature = "cookies")]
+    //     {
+    //         if let Some(cookie_store) = self.inner.cookie_store.as_ref() {
+    //             if headers.get(crate::header::COOKIE).is_none() {
+    //                 add_cookie_header(&mut headers, &**cookie_store, &url);
+    //             }
+    //         }
+    //     }
+
+    //     let accept_encoding = self.inner.accepts.as_str();
+
+    //     if let Some(accept_encoding) = accept_encoding {
+    //         if !headers.contains_key(ACCEPT_ENCODING) && !headers.contains_key(RANGE) {
+    //             headers.insert(ACCEPT_ENCODING, HeaderValue::from_static(accept_encoding));
+    //         }
+    //     }
+
+    //     let uri = expect_uri(&url);
+
+    //     let (reusable, body) = match body {
+    //         Some(body) => {
+    //             let (reusable, body) = body.try_reuse();
+    //             (Some(reusable), body)
+    //         }
+    //         None => (None, Body::empty()),
+    //     };
+
+    //     self.proxy_auth(&uri, &mut headers);
+
+    //     let builder = hyper::Request::builder()
+    //         .method(method.clone())
+    //         .uri(uri)
+    //         .version(version);
+
+    //     let in_flight = match version {
+    //         #[cfg(feature = "http3")]
+    //         http::Version::HTTP_3 if self.inner.h3_client.is_some() => {
+    //             let mut req = builder.body(body).expect("valid request parts");
+    //             *req.headers_mut() = headers.clone();
+    //             ResponseFuture::H3(self.inner.h3_client.as_ref().unwrap().request(req))
+    //         }
+    //         #[cfg(feature = "wasi-http")]
+    //         _ => {
+    //             let mut req = builder.body(body).expect("valid request parts");
+    //             *req.headers_mut() = headers.clone();
+    //             let client = super::wasi_http::Client::new();
+    //             ResponseFuture::WasiHttp(client.request(self.inner.reactor.clone(), req))
+    //         }
+    //         // #[cfg(not(feature = "wasi-http"))]
+    //         // _ => {
+    //         //     let mut req = builder.body(body).expect("valid request parts");
+    //         //     *req.headers_mut() = headers.clone();
+    //         //     ResponseFuture::Default(self.inner.hyper.request(req))
+    //         // }
+    //     };
+
+    //     let timeout = timeout
+    //         .or(self.inner.request_timeout)
+    //         .map(tokio::time::sleep)
+    //         .map(Box::pin);
+
+    //     Pending {
+    //         inner: PendingInner::Request(PendingRequest {
+    //             method,
+    //             url,
+    //             headers,
+    //             body: reusable,
+
+    //             urls: Vec::new(),
+
+    //             retry_count: 0,
+
+    //             client: self.inner.clone(),
+
+    //             in_flight,
+    //             timeout,
+    //         }),
+    //     }
+    // }
 
     fn proxy_auth(&self, dst: &Uri, headers: &mut HeaderMap) {
         if !self.inner.proxies_maybe_http_auth {
@@ -1499,33 +1606,33 @@ impl fmt::Debug for Client {
     }
 }
 
-impl tower_service::Service<Request> for Client {
-    type Response = Response;
-    type Error = crate::Error;
-    type Future = Pending;
+// impl tower_service::Service<Request> for Client {
+//     type Response = Response;
+//     type Error = crate::Error;
+//     type Future = Pending;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+//     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+//         Poll::Ready(Ok(()))
+//     }
 
-    fn call(&mut self, req: Request) -> Self::Future {
-        self.execute_request(req)
-    }
-}
+//     fn call(&mut self, req: Request) -> Self::Future {
+//         self.execute_request(req)
+//     }
+// }
 
-impl tower_service::Service<Request> for &'_ Client {
-    type Response = Response;
-    type Error = crate::Error;
-    type Future = Pending;
+// impl tower_service::Service<Request> for &'_ Client {
+//     type Response = Response;
+//     type Error = crate::Error;
+//     type Future = Pending;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+//     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+//         Poll::Ready(Ok(()))
+//     }
 
-    fn call(&mut self, req: Request) -> Self::Future {
-        self.execute_request(req)
-    }
-}
+//     fn call(&mut self, req: Request) -> Self::Future {
+//         self.execute_request(req)
+//     }
+// }
 
 impl fmt::Debug for ClientBuilder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1655,8 +1762,6 @@ struct ClientRef {
     // hyper: HyperClient,
     #[cfg(feature = "http3")]
     h3_client: Option<H3Client>,
-    #[cfg(feature = "wasi-http")]
-    wasi_http: WasiHttpClient,
     redirect_policy: redirect::Policy,
     referer: bool,
     request_timeout: Option<Duration>,
@@ -1733,8 +1838,8 @@ pin_project! {
 
 enum ResponseFuture {
     // Default(HyperResponseFuture),
-    #[cfg(feature = "wasi-http")]
-    WasiHttp(WasiHttpResponseFuture<spin_sdk::http::Response>),
+    // #[cfg(feature = "wasi-http")]
+    // WasiHttp(WasiHttpResponseFuture),
     #[cfg(feature = "http3")]
     H3(H3ResponseFuture),
 }
@@ -1797,16 +1902,17 @@ impl PendingRequest {
                         .request(req),
                 )
             }
-            #[cfg(feature = "wasi-http")]
-            ResponseFuture::WasiHttp(_) => {
-                let mut req = hyper::Request::builder()
-                    .method(self.method.clone())
-                    .uri(uri)
-                    .body(body)
-                    .expect("valid request parts");
-                *req.headers_mut() = self.headers.clone();
-                ResponseFuture::WasiHttp(self.client.wasi_http.request(req))
-            }
+            // #[cfg(feature = "wasi-http")]
+            // ResponseFuture::WasiHttp(_) => {
+            //     let mut req = hyper::Request::builder()
+            //         .method(self.method.clone())
+            //         .uri(uri)
+            //         .body(body)
+            //         .expect("valid request parts");
+            //     *req.headers_mut() = self.headers.clone();
+            //     let client = super::wasi_http::Client::new();
+            //     ResponseFuture::WasiHttp(client.request(self.inner.reactor, req))
+            // }
             // _ => {
             //     let mut req = hyper::Request::builder()
             //         .method(self.method.clone())
@@ -1850,259 +1956,259 @@ fn is_retryable_error(err: &(dyn std::error::Error + 'static)) -> bool {
     false
 }
 
-impl Pending {
-    pub(super) fn new_err(err: crate::Error) -> Pending {
-        Pending {
-            inner: PendingInner::Error(Some(err)),
-        }
-    }
+// impl Pending {
+//     pub(super) fn new_err(err: crate::Error) -> Pending {
+//         Pending {
+//             inner: PendingInner::Error(Some(err)),
+//         }
+//     }
 
-    fn inner(self: Pin<&mut Self>) -> Pin<&mut PendingInner> {
-        self.project().inner
-    }
-}
+//     fn inner(self: Pin<&mut Self>) -> Pin<&mut PendingInner> {
+//         self.project().inner
+//     }
+// }
 
-impl Future for Pending {
-    type Output = Result<Response, crate::Error>;
+// impl Future for Pending {
+//     type Output = Result<Response, crate::Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let inner = self.inner();
-        match inner.get_mut() {
-            PendingInner::Request(ref mut req) => Pin::new(req).poll(cx),
-            PendingInner::Error(ref mut err) => Poll::Ready(Err(err
-                .take()
-                .expect("Pending error polled more than once"))),
-        }
-    }
-}
+//     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+//         let inner = self.inner();
+//         match inner.get_mut() {
+//             PendingInner::Request(ref mut req) => Pin::new(req).poll(cx),
+//             PendingInner::Error(ref mut err) => Poll::Ready(Err(err
+//                 .take()
+//                 .expect("Pending error polled more than once"))),
+//         }
+//     }
+// }
 
-impl Future for PendingRequest {
-    type Output = Result<Response, crate::Error>;
+// impl Future for PendingRequest {
+//     type Output = Result<Response, crate::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(delay) = self.as_mut().timeout().as_mut().as_pin_mut() {
-            if let Poll::Ready(()) = delay.poll(cx) {
-                return Poll::Ready(Err(
-                    crate::error::request(crate::error::TimedOut).with_url(self.url.clone())
-                ));
-            }
-        }
+//     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+//         if let Some(delay) = self.as_mut().timeout().as_mut().as_pin_mut() {
+//             if let Poll::Ready(()) = delay.poll(cx) {
+//                 return Poll::Ready(Err(
+//                     crate::error::request(crate::error::TimedOut).with_url(self.url.clone())
+//                 ));
+//             }
+//         }
 
-        loop {
-            let res = match self.as_mut().in_flight().get_mut() {
-                // ResponseFuture::Default(r) => match Pin::new(r).poll(cx) {
-                //     Poll::Ready(Err(e)) => {
-                //         if self.as_mut().retry_error(&e) {
-                //             continue;
-                //         }
-                //         return Poll::Ready(Err(
-                //             crate::error::request(e).with_url(self.url.clone())
-                //         ));
-                //     }
-                //     Poll::Ready(Ok(res)) => res,
-                //     Poll::Pending => return Poll::Pending,
-                // },
-                #[cfg(feature = "wasi-http")]
-                ResponseFuture::WasiHttp(r) => match Pin::new(r).poll(cx) {
-                    Poll::Ready(Err(e)) => {
-                        if self.as_mut().retry_error(&e) {
-                            continue;
-                        }
-                        return Poll::Ready(Err(
-                            crate::error::request(e).with_url(self.url.clone())
-                        ));
-                    }
-                    Poll::Ready(Ok(res)) => res,
-                    Poll::Pending => return Poll::Pending,
-                },
-                #[cfg(feature = "http3")]
-                ResponseFuture::H3(r) => match Pin::new(r).poll(cx) {
-                    Poll::Ready(Err(e)) => {
-                        if self.as_mut().retry_error(&e) {
-                            continue;
-                        }
-                        return Poll::Ready(Err(
-                            crate::error::request(e).with_url(self.url.clone())
-                        ));
-                    }
-                    Poll::Ready(Ok(res)) => res,
-                    Poll::Pending => return Poll::Pending,
-                },
-            };
+//         loop {
+//             let res = match self.as_mut().in_flight().get_mut() {
+//                 // ResponseFuture::Default(r) => match Pin::new(r).poll(cx) {
+//                 //     Poll::Ready(Err(e)) => {
+//                 //         if self.as_mut().retry_error(&e) {
+//                 //             continue;
+//                 //         }
+//                 //         return Poll::Ready(Err(
+//                 //             crate::error::request(e).with_url(self.url.clone())
+//                 //         ));
+//                 //     }
+//                 //     Poll::Ready(Ok(res)) => res,
+//                 //     Poll::Pending => return Poll::Pending,
+//                 // },
+//                 #[cfg(feature = "wasi-http")]
+//                 ResponseFuture::WasiHttp(r) => match Pin::new(r).poll(cx) {
+//                     Poll::Ready(Err(e)) => {
+//                         if self.as_mut().retry_error(&e) {
+//                             continue;
+//                         }
+//                         return Poll::Ready(Err(
+//                             crate::error::request(e).with_url(self.url.clone())
+//                         ));
+//                     }
+//                     Poll::Ready(Ok(res)) => res,
+//                     Poll::Pending => return Poll::Pending,
+//                 },
+//                 #[cfg(feature = "http3")]
+//                 ResponseFuture::H3(r) => match Pin::new(r).poll(cx) {
+//                     Poll::Ready(Err(e)) => {
+//                         if self.as_mut().retry_error(&e) {
+//                             continue;
+//                         }
+//                         return Poll::Ready(Err(
+//                             crate::error::request(e).with_url(self.url.clone())
+//                         ));
+//                     }
+//                     Poll::Ready(Ok(res)) => res,
+//                     Poll::Pending => return Poll::Pending,
+//                 },
+//             };
 
-            // #[cfg(feature = "cookies")]
-            // {
-            //     if let Some(ref cookie_store) = self.client.cookie_store {
-            //         let mut cookies =
-            //             cookie::extract_response_cookie_headers(&res.headers()).peekable();
-            //         if cookies.peek().is_some() {
-            //             cookie_store.set_cookies(&mut cookies, &self.url);
-            //         }
-            //     }
-            // }
-            // let should_redirect = match res.status() {
-            //     StatusCode::MOVED_PERMANENTLY | StatusCode::FOUND | StatusCode::SEE_OTHER => {
-            //         self.body = None;
-            //         for header in &[
-            //             TRANSFER_ENCODING,
-            //             CONTENT_ENCODING,
-            //             CONTENT_TYPE,
-            //             CONTENT_LENGTH,
-            //         ] {
-            //             self.headers.remove(header);
-            //         }
+//             // #[cfg(feature = "cookies")]
+//             // {
+//             //     if let Some(ref cookie_store) = self.client.cookie_store {
+//             //         let mut cookies =
+//             //             cookie::extract_response_cookie_headers(&res.headers()).peekable();
+//             //         if cookies.peek().is_some() {
+//             //             cookie_store.set_cookies(&mut cookies, &self.url);
+//             //         }
+//             //     }
+//             // }
+//             // let should_redirect = match res.status() {
+//             //     StatusCode::MOVED_PERMANENTLY | StatusCode::FOUND | StatusCode::SEE_OTHER => {
+//             //         self.body = None;
+//             //         for header in &[
+//             //             TRANSFER_ENCODING,
+//             //             CONTENT_ENCODING,
+//             //             CONTENT_TYPE,
+//             //             CONTENT_LENGTH,
+//             //         ] {
+//             //             self.headers.remove(header);
+//             //         }
 
-            //         match self.method {
-            //             Method::GET | Method::HEAD => {}
-            //             _ => {
-            //                 self.method = Method::GET;
-            //             }
-            //         }
-            //         true
-            //     }
-            //     StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => {
-            //         match self.body {
-            //             Some(Some(_)) | None => true,
-            //             Some(None) => false,
-            //         }
-            //     }
-            //     _ => false,
-            // };
-            // if should_redirect {
-            //     let loc = res.headers().get(LOCATION).and_then(|val| {
-            //         let loc = (|| -> Option<Url> {
-            //             // Some sites may send a utf-8 Location header,
-            //             // even though we're supposed to treat those bytes
-            //             // as opaque, we'll check specifically for utf8.
-            //             self.url.join(str::from_utf8(val.as_bytes()).ok()?).ok()
-            //         })();
+//             //         match self.method {
+//             //             Method::GET | Method::HEAD => {}
+//             //             _ => {
+//             //                 self.method = Method::GET;
+//             //             }
+//             //         }
+//             //         true
+//             //     }
+//             //     StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => {
+//             //         match self.body {
+//             //             Some(Some(_)) | None => true,
+//             //             Some(None) => false,
+//             //         }
+//             //     }
+//             //     _ => false,
+//             // };
+//             // if should_redirect {
+//             //     let loc = res.headers().get(LOCATION).and_then(|val| {
+//             //         let loc = (|| -> Option<Url> {
+//             //             // Some sites may send a utf-8 Location header,
+//             //             // even though we're supposed to treat those bytes
+//             //             // as opaque, we'll check specifically for utf8.
+//             //             self.url.join(str::from_utf8(val.as_bytes()).ok()?).ok()
+//             //         })();
 
-            //         // Check that the `url` is also a valid `http::Uri`.
-            //         //
-            //         // If not, just log it and skip the redirect.
-            //         let loc = loc.and_then(|url| {
-            //             if try_uri(&url).is_some() {
-            //                 Some(url)
-            //             } else {
-            //                 None
-            //             }
-            //         });
+//             //         // Check that the `url` is also a valid `http::Uri`.
+//             //         //
+//             //         // If not, just log it and skip the redirect.
+//             //         let loc = loc.and_then(|url| {
+//             //             if try_uri(&url).is_some() {
+//             //                 Some(url)
+//             //             } else {
+//             //                 None
+//             //             }
+//             //         });
 
-            //         if loc.is_none() {
-            //             debug!("Location header had invalid URI: {:?}", val);
-            //         }
-            //         loc
-            //     });
-            //     if let Some(loc) = loc {
-            //         if self.client.referer {
-            //             if let Some(referer) = make_referer(&loc, &self.url) {
-            //                 self.headers.insert(REFERER, referer);
-            //             }
-            //         }
-            //         let url = self.url.clone();
-            //         self.as_mut().urls().push(url);
-            //         let action = self
-            //             .client
-            //             .redirect_policy
-            //             .check(res.status(), &loc, &self.urls);
+//             //         if loc.is_none() {
+//             //             debug!("Location header had invalid URI: {:?}", val);
+//             //         }
+//             //         loc
+//             //     });
+//             //     if let Some(loc) = loc {
+//             //         if self.client.referer {
+//             //             if let Some(referer) = make_referer(&loc, &self.url) {
+//             //                 self.headers.insert(REFERER, referer);
+//             //             }
+//             //         }
+//             //         let url = self.url.clone();
+//             //         self.as_mut().urls().push(url);
+//             //         let action = self
+//             //             .client
+//             //             .redirect_policy
+//             //             .check(res.status(), &loc, &self.urls);
 
-            //         match action {
-            //             redirect::ActionKind::Follow => {
-            //                 debug!("redirecting '{}' to '{}'", self.url, loc);
+//             //         match action {
+//             //             redirect::ActionKind::Follow => {
+//             //                 debug!("redirecting '{}' to '{}'", self.url, loc);
 
-            //                 if loc.scheme() != "http" && loc.scheme() != "https" {
-            //                     return Poll::Ready(Err(error::url_bad_scheme(loc)));
-            //                 }
+//             //                 if loc.scheme() != "http" && loc.scheme() != "https" {
+//             //                     return Poll::Ready(Err(error::url_bad_scheme(loc)));
+//             //                 }
 
-            //                 if self.client.https_only && loc.scheme() != "https" {
-            //                     return Poll::Ready(Err(error::redirect(
-            //                         error::url_bad_scheme(loc.clone()),
-            //                         loc,
-            //                     )));
-            //                 }
+//             //                 if self.client.https_only && loc.scheme() != "https" {
+//             //                     return Poll::Ready(Err(error::redirect(
+//             //                         error::url_bad_scheme(loc.clone()),
+//             //                         loc,
+//             //                     )));
+//             //                 }
 
-            //                 self.url = loc;
-            //                 let mut headers =
-            //                     std::mem::replace(self.as_mut().headers(), HeaderMap::new());
+//             //                 self.url = loc;
+//             //                 let mut headers =
+//             //                     std::mem::replace(self.as_mut().headers(), HeaderMap::new());
 
-            //                 remove_sensitive_headers(&mut headers, &self.url, &self.urls);
-            //                 let uri = expect_uri(&self.url);
-            //                 let body = match self.body {
-            //                     Some(Some(ref body)) => Body::reusable(body.clone()),
-            //                     _ => Body::empty(),
-            //                 };
+//             //                 remove_sensitive_headers(&mut headers, &self.url, &self.urls);
+//             //                 let uri = expect_uri(&self.url);
+//             //                 let body = match self.body {
+//             //                     Some(Some(ref body)) => Body::reusable(body.clone()),
+//             //                     _ => Body::empty(),
+//             //                 };
 
-            //                 // Add cookies from the cookie store.
-            //                 #[cfg(feature = "cookies")]
-            //                 {
-            //                     if let Some(ref cookie_store) = self.client.cookie_store {
-            //                         add_cookie_header(&mut headers, &**cookie_store, &self.url);
-            //                     }
-            //                 }
+//             //                 // Add cookies from the cookie store.
+//             //                 #[cfg(feature = "cookies")]
+//             //                 {
+//             //                     if let Some(ref cookie_store) = self.client.cookie_store {
+//             //                         add_cookie_header(&mut headers, &**cookie_store, &self.url);
+//             //                     }
+//             //                 }
 
-            //                 *self.as_mut().in_flight().get_mut() =
-            //                     match *self.as_mut().in_flight().as_ref() {
-            //                         #[cfg(feature = "http3")]
-            //                         ResponseFuture::H3(_) => {
-            //                             let mut req = hyper::Request::builder()
-            //                                 .method(self.method.clone())
-            //                                 .uri(uri.clone())
-            //                                 .body(body)
-            //                                 .expect("valid request parts");
-            //                             *req.headers_mut() = headers.clone();
-            //                             std::mem::swap(self.as_mut().headers(), &mut headers);
-            //                             ResponseFuture::H3(self.client.h3_client
-            //             .as_ref()
-            //             .expect("H3 client must exists, otherwise we can't have a h3 request here")
-            //                                 .request(req))
-            //                         }
-            //                         #[cfg(feature = "wasi-http")]
-            //                         ResponseFuture::WasiHttp(_) => {
-            //                             let mut req = hyper::Request::builder()
-            //                             .method(self.method.clone())
-            //                             .uri(uri.clone())
-            //                             .body(body)
-            //                             .expect("valid request parts");
-            //                         *req.headers_mut() = headers.clone();
-            //                         std::mem::swap(self.as_mut().headers(), &mut headers);
-            //                         ResponseFuture::WasiHttp(self.client.wasi_http.request(req))
+//             //                 *self.as_mut().in_flight().get_mut() =
+//             //                     match *self.as_mut().in_flight().as_ref() {
+//             //                         #[cfg(feature = "http3")]
+//             //                         ResponseFuture::H3(_) => {
+//             //                             let mut req = hyper::Request::builder()
+//             //                                 .method(self.method.clone())
+//             //                                 .uri(uri.clone())
+//             //                                 .body(body)
+//             //                                 .expect("valid request parts");
+//             //                             *req.headers_mut() = headers.clone();
+//             //                             std::mem::swap(self.as_mut().headers(), &mut headers);
+//             //                             ResponseFuture::H3(self.client.h3_client
+//             //             .as_ref()
+//             //             .expect("H3 client must exists, otherwise we can't have a h3 request here")
+//             //                                 .request(req))
+//             //                         }
+//             //                         #[cfg(feature = "wasi-http")]
+//             //                         ResponseFuture::WasiHttp(_) => {
+//             //                             let mut req = hyper::Request::builder()
+//             //                             .method(self.method.clone())
+//             //                             .uri(uri.clone())
+//             //                             .body(body)
+//             //                             .expect("valid request parts");
+//             //                         *req.headers_mut() = headers.clone();
+//             //                         std::mem::swap(self.as_mut().headers(), &mut headers);
+//             //                         ResponseFuture::WasiHttp(self.client.wasi_http.request(req))
                             
-            //                         }
-            //                         // #[cfg(not(feature = "wasi-http"))]
-            //                         // _ => {
-            //                         //     let mut req = hyper::Request::builder()
-            //                         //         .method(self.method.clone())
-            //                         //         .uri(uri.clone())
-            //                         //         .body(body)
-            //                         //         .expect("valid request parts");
-            //                         //     *req.headers_mut() = headers.clone();
-            //                         //     std::mem::swap(self.as_mut().headers(), &mut headers);
-            //                         //     ResponseFuture::Default(self.client.hyper.request(req))
-            //                         // }
-            //                     };
+//             //                         }
+//             //                         // #[cfg(not(feature = "wasi-http"))]
+//             //                         // _ => {
+//             //                         //     let mut req = hyper::Request::builder()
+//             //                         //         .method(self.method.clone())
+//             //                         //         .uri(uri.clone())
+//             //                         //         .body(body)
+//             //                         //         .expect("valid request parts");
+//             //                         //     *req.headers_mut() = headers.clone();
+//             //                         //     std::mem::swap(self.as_mut().headers(), &mut headers);
+//             //                         //     ResponseFuture::Default(self.client.hyper.request(req))
+//             //                         // }
+//             //                     };
 
-            //                 continue;
-            //             }
-            //             redirect::ActionKind::Stop => {
-            //                 debug!("redirect policy disallowed redirection to '{}'", loc);
-            //             }
-            //             redirect::ActionKind::Error(err) => {
-            //                 return Poll::Ready(Err(crate::error::redirect(err, self.url.clone())));
-            //             }
-            //         }
-            //     }
-            // }
+//             //                 continue;
+//             //             }
+//             //             redirect::ActionKind::Stop => {
+//             //                 debug!("redirect policy disallowed redirection to '{}'", loc);
+//             //             }
+//             //             redirect::ActionKind::Error(err) => {
+//             //                 return Poll::Ready(Err(crate::error::redirect(err, self.url.clone())));
+//             //             }
+//             //         }
+//             //     }
+//             // }
 
-            let res = Response::new(
-                res,
-                self.url.clone(),
-                self.client.accepts,
-                self.timeout.take(),
-            );
-            return Poll::Ready(Ok(res));
-        }
-    }
-}
+//             let res = Response::new(
+//                 res,
+//                 self.url.clone(),
+//                 self.client.accepts,
+//                 self.timeout.take(),
+//             );
+//             return Poll::Ready(Ok(res));
+//         }
+//     }
+// }
 
 impl fmt::Debug for Pending {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

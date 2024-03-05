@@ -198,7 +198,12 @@ serde = { version = "1.0", features = ["derive"] }
 wit-bindgen = { version = "0.18" }
 anyhow = "1"
 async-trait = "0.1.74"
-spin-sdk = { git = "https://github.com/smndtrl/spin-rust-sdk" }
+# spin-sdk = { git = "https://github.com/smndtrl/spin-rust-sdk" }
+spin-sdk = { path = "../spin-rust-sdk" }
+# wasi-http-client = { git = "https://github.com/yoshuawuyts/wasm-http-tools" }
+# wasi-async-runtime = { git = "https://github.com/yoshuawuyts/wasm-http-tools" }
+# wasi-http-client = { path = "../wasm-http-tools/crates/wasi-http-client" }
+# wasi-async-runtime = { path = "../wasm-http-tools/crates/wasi-async-runtime", features = [ "send" ] }
 
 # rustls-tls
 # hyper-rustls = { version = "0.26.0", default-features = false, optional = true }
