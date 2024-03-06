@@ -471,7 +471,7 @@ impl<T: Into<Body>> From<http::Response<T>> for Response {
         }
     }
 }
-*/
+ */
 
 /// A `Response` can be converted into a `http::Response`.
 // It's supposed to be the inverse of the conversion above.
