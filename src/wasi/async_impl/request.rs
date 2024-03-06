@@ -11,7 +11,7 @@ use super::body::Body;
 #[cfg(not(all(target_arch = "wasm32", target_os = "wasi")))] // TODO(simon): remove
 use super::client::{Client, Pending};
 #[cfg(all(target_arch = "wasm32", target_os = "wasi"))] // TODO(simon): remove
-use crate::wasi::async_impl::client::{Client, Pending};
+use crate::wasi::async_impl::client::Client;
 #[cfg(feature = "multipart")]
 use super::multipart;
 use super::response::Response;

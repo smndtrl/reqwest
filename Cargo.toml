@@ -95,7 +95,6 @@ __rustls-ring = ["hyper-rustls?/ring", "tokio-rustls?/ring", "rustls?/ring", "qu
 # When enabled, disable using the cached SYS_PROXIES.
 __internal_proxy_sys_no_cache = []
 
-wasi-http = []
 
 [dependencies]
 base64 = "0.22"

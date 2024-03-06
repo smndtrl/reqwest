@@ -1,5 +1,5 @@
 use std::fmt;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::pin::Pin;
 
 use bytes::Bytes;
@@ -28,7 +28,7 @@ pub type InnerResponseBody = BoxBody<Bytes, crate::Error>;
 /// A Response to a submitted `Request`.
 pub struct Response {
     // pub(super) res: WasiResponse,
-    pub(super) res: hyper::Response<http_body_util::Full<Bytes>>,
+    pub(super) res: hyper::Response<Decoder>,
     // Boxed to save space (11 words to 1 word), and it's not accessed
     // frequently internally.
     url: Box<Url>,
@@ -39,16 +39,16 @@ impl Response {
     pub(super) fn new(
         res: hyper::Response<http_body_util::Full<Bytes>>,
         // url: Url,
-        // accepts: Accepts,
-        // timeout: Option<Pin<Box<Sleep>>>,
+        accepts: Accepts,
+        timeout: Option<Pin<Box<Sleep>>>,
     ) -> Response {
-        // let (mut parts, body) = res.into_parts();
-        // let decoder = Decoder::detect(
-        //     &mut parts.headers,
-        //     super::body::response(body, timeout),
-        //     accepts,
-        // );
-        // let res = hyper::Response::from_parts(parts, decoder);
+        let (mut parts, body) = res.into_parts();
+        let decoder = Decoder::detect(
+            &mut parts.headers,
+            super::body::response(body, timeout),
+            accepts,
+        );
+        let res = hyper::Response::from_parts(parts, decoder);
 
         // let a = res.headers().iter().fold(HeaderMap::new(), |mut acc, (k, v)| {
         //     let key = http::HeaderName::from_lowercase(k.as_bytes()).unwrap();
@@ -125,24 +125,25 @@ impl Response {
     }
 
     /// Get the remote address used to get this `Response`.
-    // pub fn remote_addr(&self) -> Option<SocketAddr> {
-    //     self.res
-    //         .extensions()
-    //         .get::<HttpInfo>()
-    //         .map(|info| info.remote_addr())
-    // }
+    pub fn remote_addr(&self) -> Option<SocketAddr> {
+        // self.res
+        //     .extensions()
+        //     .get::<HttpInfo>()
+        //     .map(|info| info.remote_addr())
+        Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080))
+    }
 
     /// Returns a reference to the associated extensions.
-    // pub fn extensions(&self) -> &http::Extensions {
-    //     // self.res.extensions()
+    pub fn extensions(&self) -> &http::Extensions {
+        self.res.extensions()
     //    &http::Extensions::new()
-    // }
+    }
 
     /// Returns a mutable reference to the associated extensions.
-    // pub fn extensions_mut(&mut self) -> &mut http::Extensions {
-    //     // self.res.extensions_mut()
-    //     &mut http::Extensions::new()
-    // }
+    pub fn extensions_mut(&mut self) -> &mut http::Extensions {
+        self.res.extensions_mut()
+        // &mut http::Extensions::new()
+    }
 
     // body methods
 

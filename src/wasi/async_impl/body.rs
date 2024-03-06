@@ -294,7 +294,7 @@ pub(crate) type ResponseBody =
     http_body_util::combinators::BoxBody<Bytes, Box<dyn std::error::Error + Send + Sync>>;
 
 pub(crate) fn response(
-    body: hyper::body::Incoming,
+    body: http_body_util::Full<bytes::Bytes>,
     timeout: Option<Pin<Box<Sleep>>>,
 ) -> ResponseBody {
     use http_body_util::BodyExt;

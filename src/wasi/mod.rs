@@ -1,5 +1,5 @@
 pub mod async_impl;
-
+pub mod blocking;
 // pub mod wit {
 //     // wit_bindgen::generate!({
 //     //     path: "wit",

@@ -91,17 +91,17 @@ impl fmt::Debug for Decoder {
 }
 
 impl Decoder {
-    #[cfg(feature = "blocking")]
+    #[cfg(all(feature = "blocking", feature = "multipart"))]
     pub(crate) fn empty() -> Decoder {
         Decoder {
-            inner: Inner::PlainText(Body::empty().into_stream()),
+            inner: Inner::PlainText(crate::Body::empty().into_stream()),
         }
     }
 
     /// A plain text decoder.
     ///
     /// This decoder will emit the underlying chunks as-is.
-    fn plain_text(body: ResponseBody) -> Decoder {
+    pub fn plain_text(body: ResponseBody) -> Decoder {
         Decoder {
             inner: Inner::PlainText(body),
         }
@@ -352,7 +352,6 @@ impl Stream for IoStream {
 // ===== impl Accepts =====
 
 impl Accepts {
-    /*
     pub(super) fn none() -> Self {
         Accepts {
             #[cfg(feature = "gzip")]
@@ -363,7 +362,6 @@ impl Accepts {
             deflate: false,
         }
     }
-    */
 
     pub(super) fn as_str(&self) -> Option<&'static str> {
         match (self.is_gzip(), self.is_brotli(), self.is_deflate()) {
