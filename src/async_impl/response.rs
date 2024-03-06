@@ -433,7 +433,7 @@ impl<T: Into<Body>> From<http::Response<T>> for Response {
         }
     }
 }
-*/
+ */
 
 /// A `Response` can be piped as the `Body` of another request.
 impl From<Response> for Body {

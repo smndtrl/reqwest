@@ -52,7 +52,7 @@ use log::{debug, trace};
 // #[cfg(feature = "http3")]
 // use quinn::VarInt;
 
-#[cfg(feature = "wasi-http")]
+
 // use super::wasi_http::{Client as InnerWasiHttpClient, WasiHttpResponseFuture};
 // use wasi_http_client::{
 //     Client as WasiClient, 
@@ -1416,7 +1416,7 @@ impl Client {
 
     fn from_spin_response(response: SpinResponse) -> Response {
         let http_response = Self::spin_response_to_hyper_response(response);
-        let reqwest_response = Response::new(http_response);
+        let reqwest_response = Response::new(http_response, Accepts::default() , None);
         reqwest_response
     }
 
@@ -1445,7 +1445,7 @@ impl Client {
     //     Response::new(response)
     // }
 
-    #[cfg(feature = "wasi-http")]
+
     pub(super) fn execute_request(&self, req: Request) -> 
     impl Future<Output = Result<Response, crate::Error>>  {
         async move {
@@ -1467,107 +1467,6 @@ impl Client {
             // todo!()
         }
     }
-
-    // #[cfg(not(feature = "wasi-http"))]
-    // pub(super) fn execute_request(&self, req: Request) -> Pending {
-    //     let (method, url, mut headers, body, timeout, version) = req.pieces();
-    //     if url.scheme() != "http" && url.scheme() != "https" {
-    //         return Pending::new_err(error::url_bad_scheme(url));
-    //     }
-
-    //     // check if we're in https_only mode and check the scheme of the current URL
-    //     if self.inner.https_only && url.scheme() != "https" {
-    //         return Pending::new_err(error::url_bad_scheme(url));
-    //     }
-
-    //     // insert default headers in the request headers
-    //     // without overwriting already appended headers.
-    //     for (key, value) in &self.inner.headers {
-    //         if let Entry::Vacant(entry) = headers.entry(key) {
-    //             entry.insert(value.clone());
-    //         }
-    //     }
-
-    //     // Add cookies from the cookie store.
-    //     #[cfg(feature = "cookies")]
-    //     {
-    //         if let Some(cookie_store) = self.inner.cookie_store.as_ref() {
-    //             if headers.get(crate::header::COOKIE).is_none() {
-    //                 add_cookie_header(&mut headers, &**cookie_store, &url);
-    //             }
-    //         }
-    //     }
-
-    //     let accept_encoding = self.inner.accepts.as_str();
-
-    //     if let Some(accept_encoding) = accept_encoding {
-    //         if !headers.contains_key(ACCEPT_ENCODING) && !headers.contains_key(RANGE) {
-    //             headers.insert(ACCEPT_ENCODING, HeaderValue::from_static(accept_encoding));
-    //         }
-    //     }
-
-    //     let uri = expect_uri(&url);
-
-    //     let (reusable, body) = match body {
-    //         Some(body) => {
-    //             let (reusable, body) = body.try_reuse();
-    //             (Some(reusable), body)
-    //         }
-    //         None => (None, Body::empty()),
-    //     };
-
-    //     self.proxy_auth(&uri, &mut headers);
-
-    //     let builder = hyper::Request::builder()
-    //         .method(method.clone())
-    //         .uri(uri)
-    //         .version(version);
-
-    //     let in_flight = match version {
-    //         #[cfg(feature = "http3")]
-    //         http::Version::HTTP_3 if self.inner.h3_client.is_some() => {
-    //             let mut req = builder.body(body).expect("valid request parts");
-    //             *req.headers_mut() = headers.clone();
-    //             ResponseFuture::H3(self.inner.h3_client.as_ref().unwrap().request(req))
-    //         }
-    //         #[cfg(feature = "wasi-http")]
-    //         _ => {
-    //             let mut req = builder.body(body).expect("valid request parts");
-    //             *req.headers_mut() = headers.clone();
-    //             let client = super::wasi_http::Client::new();
-    //             ResponseFuture::WasiHttp(client.request(self.inner.reactor.clone(), req))
-    //         }
-    //         // #[cfg(not(feature = "wasi-http"))]
-    //         // _ => {
-    //         //     let mut req = builder.body(body).expect("valid request parts");
-    //         //     *req.headers_mut() = headers.clone();
-    //         //     ResponseFuture::Default(self.inner.hyper.request(req))
-    //         // }
-    //     };
-
-    //     let timeout = timeout
-    //         .or(self.inner.request_timeout)
-    //         .map(tokio::time::sleep)
-    //         .map(Box::pin);
-
-    //     Pending {
-    //         inner: PendingInner::Request(PendingRequest {
-    //             method,
-    //             url,
-    //             headers,
-    //             body: reusable,
-
-    //             urls: Vec::new(),
-
-    //             retry_count: 0,
-
-    //             client: self.inner.clone(),
-
-    //             in_flight,
-    //             timeout,
-    //         }),
-    //     }
-    // }
 
     fn proxy_auth(&self, dst: &Uri, headers: &mut HeaderMap) {
         if !self.inner.proxies_maybe_http_auth {
@@ -1804,157 +1703,149 @@ impl ClientRef {
     }
 }
 
-pin_project! {
-    pub struct Pending {
-        #[pin]
-        inner: PendingInner,
-    }
-}
+// pin_project! {
+//     pub struct Pending {
+//         #[pin]
+//         inner: PendingInner,
+//     }
+// }
 
-enum PendingInner {
-    Request(PendingRequest),
-    Error(Option<crate::Error>),
-}
+// enum PendingInner {
+//     Request(PendingRequest),
+//     Error(Option<crate::Error>),
+// }
 
-pin_project! {
-    struct PendingRequest {
-        method: Method,
-        url: Url,
-        headers: HeaderMap,
-        body: Option<Option<Bytes>>,
+// pin_project! {
+//     struct PendingRequest {
+//         method: Method,
+//         url: Url,
+//         headers: HeaderMap,
+//         body: Option<Option<Bytes>>,
 
-        urls: Vec<Url>,
+//         urls: Vec<Url>,
 
-        retry_count: usize,
+//         retry_count: usize,
 
-        client: Arc<ClientRef>,
+//         client: Arc<ClientRef>,
 
-        #[pin]
-        in_flight: ResponseFuture,
-        #[pin]
-        timeout: Option<Pin<Box<Sleep>>>,
-    }
-}
+//         #[pin]
+//         in_flight: ResponseFuture,
+//         #[pin]
+//         timeout: Option<Pin<Box<Sleep>>>,
+//     }
+// }
 
-enum ResponseFuture {
-    // Default(HyperResponseFuture),
-    // #[cfg(feature = "wasi-http")]
-    // WasiHttp(WasiHttpResponseFuture),
-    #[cfg(feature = "http3")]
-    H3(H3ResponseFuture),
-}
+// impl PendingRequest {
+//     fn in_flight(self: Pin<&mut Self>) -> Pin<&mut ResponseFuture> {
+//         self.project().in_flight
+//     }
 
-impl PendingRequest {
-    fn in_flight(self: Pin<&mut Self>) -> Pin<&mut ResponseFuture> {
-        self.project().in_flight
-    }
+//     fn timeout(self: Pin<&mut Self>) -> Pin<&mut Option<Pin<Box<Sleep>>>> {
+//         self.project().timeout
+//     }
 
-    fn timeout(self: Pin<&mut Self>) -> Pin<&mut Option<Pin<Box<Sleep>>>> {
-        self.project().timeout
-    }
+//     fn urls(self: Pin<&mut Self>) -> &mut Vec<Url> {
+//         self.project().urls
+//     }
 
-    fn urls(self: Pin<&mut Self>) -> &mut Vec<Url> {
-        self.project().urls
-    }
+//     fn headers(self: Pin<&mut Self>) -> &mut HeaderMap {
+//         self.project().headers
+//     }
 
-    fn headers(self: Pin<&mut Self>) -> &mut HeaderMap {
-        self.project().headers
-    }
+//     fn retry_error(mut self: Pin<&mut Self>, err: &(dyn std::error::Error + 'static)) -> bool {
+//         if !is_retryable_error(err) {
+//             return false;
+//         }
 
-    fn retry_error(mut self: Pin<&mut Self>, err: &(dyn std::error::Error + 'static)) -> bool {
-        if !is_retryable_error(err) {
-            return false;
-        }
+//         trace!("can retry {:?}", err);
 
-        trace!("can retry {:?}", err);
+//         let body = match self.body {
+//             Some(Some(ref body)) => Body::reusable(body.clone()),
+//             Some(None) => {
+//                 debug!("error was retryable, but body not reusable");
+//                 return false;
+//             }
+//             None => Body::empty(),
+//         };
 
-        let body = match self.body {
-            Some(Some(ref body)) => Body::reusable(body.clone()),
-            Some(None) => {
-                debug!("error was retryable, but body not reusable");
-                return false;
-            }
-            None => Body::empty(),
-        };
+//         if self.retry_count >= 2 {
+//             trace!("retry count too high");
+//             return false;
+//         }
+//         self.retry_count += 1;
 
-        if self.retry_count >= 2 {
-            trace!("retry count too high");
-            return false;
-        }
-        self.retry_count += 1;
+//         let uri = expect_uri(&self.url);
 
-        let uri = expect_uri(&self.url);
+//         *self.as_mut().in_flight().get_mut() = match *self.as_mut().in_flight().as_ref() {
+//             #[cfg(feature = "http3")]
+//             ResponseFuture::H3(_) => {
+//                 let mut req = hyper::Request::builder()
+//                     .method(self.method.clone())
+//                     .uri(uri)
+//                     .body(body)
+//                     .expect("valid request parts");
+//                 *req.headers_mut() = self.headers.clone();
+//                 ResponseFuture::H3(
+//                     self.client
+//                         .h3_client
+//                         .as_ref()
+//                         .expect("H3 client must exists, otherwise we can't have a h3 request here")
+//                         .request(req),
+//                 )
+//             }
+//             // #[cfg(feature = "wasi-http")]
+//             // ResponseFuture::WasiHttp(_) => {
+//             //     let mut req = hyper::Request::builder()
+//             //         .method(self.method.clone())
+//             //         .uri(uri)
+//             //         .body(body)
+//             //         .expect("valid request parts");
+//             //     *req.headers_mut() = self.headers.clone();
+//             //     let client = super::wasi_http::Client::new();
+//             //     ResponseFuture::WasiHttp(client.request(self.inner.reactor, req))
+//             // }
+//             // _ => {
+//             //     let mut req = hyper::Request::builder()
+//             //         .method(self.method.clone())
+//             //         .uri(uri)
+//             //         .body(body)
+//             //         .expect("valid request parts");
+//             //     *req.headers_mut() = self.headers.clone();
+//             //     ResponseFuture::Default(self.client.hyper.request(req))
+//             // }
+//         };
 
-        *self.as_mut().in_flight().get_mut() = match *self.as_mut().in_flight().as_ref() {
-            #[cfg(feature = "http3")]
-            ResponseFuture::H3(_) => {
-                let mut req = hyper::Request::builder()
-                    .method(self.method.clone())
-                    .uri(uri)
-                    .body(body)
-                    .expect("valid request parts");
-                *req.headers_mut() = self.headers.clone();
-                ResponseFuture::H3(
-                    self.client
-                        .h3_client
-                        .as_ref()
-                        .expect("H3 client must exists, otherwise we can't have a h3 request here")
-                        .request(req),
-                )
-            }
-            // #[cfg(feature = "wasi-http")]
-            // ResponseFuture::WasiHttp(_) => {
-            //     let mut req = hyper::Request::builder()
-            //         .method(self.method.clone())
-            //         .uri(uri)
-            //         .body(body)
-            //         .expect("valid request parts");
-            //     *req.headers_mut() = self.headers.clone();
-            //     let client = super::wasi_http::Client::new();
-            //     ResponseFuture::WasiHttp(client.request(self.inner.reactor, req))
-            // }
-            // _ => {
-            //     let mut req = hyper::Request::builder()
-            //         .method(self.method.clone())
-            //         .uri(uri)
-            //         .body(body)
-            //         .expect("valid request parts");
-            //     *req.headers_mut() = self.headers.clone();
-            //     ResponseFuture::Default(self.client.hyper.request(req))
-            // }
-        };
+//         true
+//     }
+// }
 
-        true
-    }
-}
+// fn is_retryable_error(err: &(dyn std::error::Error + 'static)) -> bool {
+//     #[cfg(feature = "http3")]
+//     if let Some(cause) = err.source() {
+//         if let Some(err) = cause.downcast_ref::<h3::Error>() {
+//             debug!("determining if HTTP/3 error {} can be retried", err);
+//             // TODO: Does h3 provide an API for checking the error?
+//             return err.to_string().as_str() == "timeout";
+//         }
+//     }
 
-fn is_retryable_error(err: &(dyn std::error::Error + 'static)) -> bool {
-    #[cfg(feature = "http3")]
-    if let Some(cause) = err.source() {
-        if let Some(err) = cause.downcast_ref::<h3::Error>() {
-            debug!("determining if HTTP/3 error {} can be retried", err);
-            // TODO: Does h3 provide an API for checking the error?
-            return err.to_string().as_str() == "timeout";
-        }
-    }
+//     if let Some(cause) = err.source() {
+//         if let Some(err) = cause.downcast_ref::<h2::Error>() {
+//             // They sent us a graceful shutdown, try with a new connection!
+//             if err.is_go_away() && err.is_remote() && err.reason() == Some(h2::Reason::NO_ERROR) {
+//                 return true;
+//             }
 
-    if let Some(cause) = err.source() {
-        if let Some(err) = cause.downcast_ref::<h2::Error>() {
-            // They sent us a graceful shutdown, try with a new connection!
-            if err.is_go_away() && err.is_remote() && err.reason() == Some(h2::Reason::NO_ERROR) {
-                return true;
-            }
-
-            // REFUSED_STREAM was sent from the server, which is safe to retry.
-            // https://www.rfc-editor.org/rfc/rfc9113.html#section-8.7-3.2
-            if err.is_reset() && err.is_remote() && err.reason() == Some(h2::Reason::REFUSED_STREAM)
-            {
-                return true;
-            }
-        }
-    }
-    false
-}
+//             // REFUSED_STREAM was sent from the server, which is safe to retry.
+//             // https://www.rfc-editor.org/rfc/rfc9113.html#section-8.7-3.2
+//             if err.is_reset() && err.is_remote() && err.reason() == Some(h2::Reason::REFUSED_STREAM)
+//             {
+//                 return true;
+//             }
+//         }
+//     }
+//     false
+// }
 
 // impl Pending {
 //     pub(super) fn new_err(err: crate::Error) -> Pending {
@@ -2210,18 +2101,18 @@ fn is_retryable_error(err: &(dyn std::error::Error + 'static)) -> bool {
 //     }
 // }
 
-impl fmt::Debug for Pending {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.inner {
-            PendingInner::Request(ref req) => f
-                .debug_struct("Pending")
-                .field("method", &req.method)
-                .field("url", &req.url)
-                .finish(),
-            PendingInner::Error(ref err) => f.debug_struct("Pending").field("error", err).finish(),
-        }
-    }
-}
+// impl fmt::Debug for Pending {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match self.inner {
+//             PendingInner::Request(ref req) => f
+//                 .debug_struct("Pending")
+//                 .field("method", &req.method)
+//                 .field("url", &req.url)
+//                 .finish(),
+//             PendingInner::Error(ref err) => f.debug_struct("Pending").field("error", err).finish(),
+//         }
+//     }
+// }
 
 fn make_referer(next: &Url, previous: &Url) -> Option<HeaderValue> {
     if next.scheme() == "http" && previous.scheme() == "https" {

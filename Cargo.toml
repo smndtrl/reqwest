@@ -79,7 +79,6 @@ __rustls = ["hyper-rustls", "tokio-rustls", "rustls", "__tls", "rustls-pemfile",
 # When enabled, disable using the cached SYS_PROXIES.
 __internal_proxy_sys_no_cache = []
 
-wasi-http = []
 
 [dependencies]
 base64 = "0.21"

@@ -242,7 +242,7 @@ macro_rules! if_wasm {
 
 macro_rules! if_wasi_http {
     ($($item:item)*) => {$(
-        #[cfg(all(target_arch = "wasm32", target_os = "wasi", feature = "wasi-http"))]
+        #[cfg(all(target_arch = "wasm32", target_os = "wasi"))]
         $item
     )*}
 }
@@ -393,10 +393,15 @@ if_wasi_http! {
     // pub use self::async_impl::multipart;
 
 
-    // mod async_impl;
+    mod async_impl {
+        pub use super::wasi::async_impl::*;
+    }
     pub mod wasi;
-    // #[cfg(feature = "blocking")]
-    // pub mod blocking;
+    #[cfg(feature = "blocking")]
+    pub mod blocking {
+        pub use super::wasi::blocking::*;
+    }
+    
     // mod connect;
     // #[cfg(feature = "cookies")]
     // pub mod cookie;
