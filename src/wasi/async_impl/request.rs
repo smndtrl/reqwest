@@ -509,7 +509,7 @@ impl RequestBuilder {
     /// # }
     /// ```
     pub fn send(self) -> impl Future<Output = Result<Response, crate::Error>> {
-        println!("sending...");
+
         match self.request {
             Ok(req) => self.client.execute_request(req),
             Err(err) => todo!() //Pending::new_err(err),
