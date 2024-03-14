@@ -241,14 +241,14 @@ impl From<&'static str> for Body {
     }
 }
 
-#[cfg(feature = "stream")]
-#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-impl From<File> for Body {
-    #[inline]
-    fn from(file: File) -> Body {
-        Body::wrap_stream(ReaderStream::new(file))
-    }
-}
+// #[cfg(feature = "stream")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+// impl From<File> for Body {
+//     #[inline]
+//     fn from(file: File) -> Body {
+//         Body::wrap_stream(ReaderStream::new(file))
+//     }
+// }
 
 impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
