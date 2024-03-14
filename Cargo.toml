@@ -252,12 +252,12 @@ path = "wit"
 "wasi:http" = { path = "wit/deps/http" }
 "wasi:io" = { path = "wit/deps/io" }
 
-[patch.crates-io]
-hyper = { path = "../hyper" }
-# hyper-util = { path = "../hyper/hyper-util" }
-h2 = { path = "../h2" }
-tokio = { path = "../tokio/tokio"}
-tokio-util = { path = "../tokio/tokio-util"}
+# [patch.crates-io]
+# hyper = { path = "../hyper" }
+# # hyper-util = { path = "../hyper/hyper-util" }
+# h2 = { path = "../h2" }
+# tokio = { path = "../tokio/tokio"}
+# tokio-util = { path = "../tokio/tokio-util"}
 
 [[example]]
 name = "blocking"
