@@ -59,7 +59,7 @@ multipart = ["mime_guess"]
 
 trust-dns = ["trust-dns-resolver"]
 
-stream = ["tokio/fs", "tokio-util", "wasm-streams"]
+stream = ["tokio-util", "wasm-streams"]
 
 socks = ["tokio-socks"]
 
