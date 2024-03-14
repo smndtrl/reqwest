@@ -7,8 +7,8 @@ use bytes::Bytes;
 use http_body::Body as HttpBody;
 use http_body_util::combinators::BoxBody;
 //use sync_wrapper::SyncWrapper;
-#[cfg(feature = "stream")]
-use tokio::fs::File;
+// #[cfg(feature = "stream")]
+// use tokio::fs::File;
 use tokio::time::Sleep;
 #[cfg(feature = "stream")]
 use tokio_util::io::ReaderStream;
@@ -219,14 +219,14 @@ impl From<&'static str> for Body {
     }
 }
 
-#[cfg(feature = "stream")]
-#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-impl From<File> for Body {
-    #[inline]
-    fn from(file: File) -> Body {
-        Body::wrap_stream(ReaderStream::new(file))
-    }
-}
+// #[cfg(feature = "stream")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+// impl From<File> for Body {
+//     #[inline]
+//     fn from(file: File) -> Body {
+//         Body::wrap_stream(ReaderStream::new(file))
+//     }
+// }
 
 impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
