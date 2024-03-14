@@ -142,7 +142,7 @@ impl Response {
     ///     .text()
     ///     .await?;
     ///
-    /// println!("text: {:?}", content);
+    /// println!("text: {content:?}");
     /// # Ok(())
     /// # }
     /// ```
@@ -171,7 +171,7 @@ impl Response {
     ///     .text_with_charset("utf-8")
     ///     .await?;
     ///
-    /// println!("text: {:?}", content);
+    /// println!("text: {content:?}");
     /// # Ok(())
     /// # }
     /// ```
@@ -253,7 +253,7 @@ impl Response {
     ///     .bytes()
     ///     .await?;
     ///
-    /// println!("bytes: {:?}", bytes);
+    /// println!("bytes: {bytes:?}");
     /// # Ok(())
     /// # }
     /// ```
@@ -276,7 +276,7 @@ impl Response {
     /// let mut res = reqwest::get("https://hyper.rs").await?;
     ///
     /// while let Some(chunk) = res.chunk().await? {
-    ///     println!("Chunk: {:?}", chunk);
+    ///     println!("Chunk: {chunk:?}");
     /// }
     /// # Ok(())
     /// # }
