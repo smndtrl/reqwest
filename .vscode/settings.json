@@ -1,8 +1,7 @@
 {
     "rust-analyzer.showUnlinkedFileNotification": false,
     "rust-analyzer.check.features": [
-
-        "wasi-http",
+        "json",
         "stream"
     ],
     "rust-analyzer.check.targets": "wasm32-wasi",
@@ -10,7 +9,7 @@
     "rust-analyzer.lens.references.trait.enable": true,
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.cargo.features": [
-        "wasi-http",
+        "json",
         "stream",
         "gzip", "brotli", "deflate",
         "rustls-tls"
