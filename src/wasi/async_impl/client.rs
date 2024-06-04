@@ -46,7 +46,7 @@ use crate::tls::{self, TlsBackend};
 #[cfg(any(feature = "native-tls", feature = "__rustls"))]
 use crate::Identity;
 use crate::{IntoUrl, Method, Proxy, StatusCode, Url};
-use log::{debug, trace};
+use tracing::{debug, trace};
 // #[cfg(feature = "http3")]
 // use quinn::TransportConfig;
 // #[cfg(feature = "http3")]
@@ -1449,6 +1449,7 @@ impl Client {
     pub(super) fn execute_request(&self, req: Request) -> 
     impl Future<Output = Result<Response, crate::Error>>  {
         async move {
+            debug!("execute_request");
             // /// wasi-http-client
             // wasi_async_runtime::block_on( |reactor| async {
             //     let client = WasiClient::new(reactor);
