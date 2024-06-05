@@ -67,8 +67,8 @@ impl Response {
     /// Get the `StatusCode` of this `Response`.
     #[inline]
     pub fn status(&self) -> StatusCode {
-        // http::StatusCode::from_u16(self.res.status().clone()).unwrap() // TODO(simon): fix
-        http::StatusCode::from_u16(200).unwrap()
+        http::StatusCode::from_u16(self.res.status().clone().into()).unwrap() // TODO(simon): fix
+        // http::StatusCode::from_u16(200).unwrap()
     }
 
     /// Get the HTTP `Version` of this `Response`.
