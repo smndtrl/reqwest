@@ -1383,26 +1383,76 @@ impl Client {
     }
 
     fn into_spin_request(request: Request) -> SpinRequest {
-        let mut spin_request = SpinRequestBuilder::new(request.method().clone().into(), request.url().as_str());
-        spin_request.headers(request.headers());
-        if let Some(body) = request.body() {
-            spin_request.body(body.as_bytes().expect("no body bytes").to_vec());
-        } else {
+        debug!("REQWEST {:?}", request);
+        // let mut spin_request = SpinRequestBuilder::new(request.method().clone().into(), request.url().as_str());
+
+
+        // if let Some(body) = request.body() {
+        //     spin_request.body(body.as_bytes().expect("no body bytes").to_vec());
+        // } else {
             
-        }
+        // }
+        
         
 
-        spin_request.build()
+        // let request = spin_request.build();
+
+        // debug!("SPIN {:?}, {:?}, {:?}, {:?}, {:?}", request.method(), request.uri(), request.path(), request.query(), request.body());
+        let body = match request.body() {
+            Some(body) => {
+                
+                let b = body.as_bytes().expect("no body bytes").to_vec();
+                debug!("some body found {:?}", b);
+                b
+            },
+            _ => {
+                debug!("no body found");
+                Vec::new()
+            }
+        };
+
+        let spin_request =SpinRequestBuilder::new(request.method().clone().into(), request.url().as_str())
+            .headers(request.headers())
+            .body(body)
+            .build();
+
+        debug!("SPIN {:?}, {:?}, {:?}, {:?}, {:?}, {:?}", spin_request.method(), spin_request.uri(), spin_request.path(), spin_request.query(), spin_request.headers().collect::<Vec<(_,_)>>(), spin_request.body());
+
+        spin_request
+ 
     }
 
     fn spin_response_to_hyper_response(response: SpinResponse) -> http::Response<http_body_util::Full<Bytes>> {
-        let builder = hyper::Response::builder();
+        let mut http_response = http::Response::builder();
 
-  
+        let spin_status = response.status().clone();
+        let status = http::StatusCode::from_u16(spin_status.clone()).unwrap();
+        http_response = http_response.status(status);
+        let spin_headers: Vec<(String, &[u8])> = response.headers().map(|(k, v)| (k.to_string(), v.as_bytes())).collect();
+        // let spin_headers = response.headers();
+        { 
+            
+            let headers = http_response.headers_mut().unwrap();
+            spin_headers.into_iter().for_each(|(key, value)| {
+                let new_name = http::HeaderName::from_bytes(key.as_bytes()).unwrap();
+                let new_value = http::HeaderValue::from_bytes(value).unwrap();
+                let _ = headers.insert(new_name, new_value );
+            })
+         }
+
+
+        debug!("SPIN {:?}", response);
         let rawbody = response.into_body();
         let body = http_body_util::Full::new(Bytes::from(rawbody));
-        let res = builder.body(body).unwrap();
-        res
+
+        
+
+
+        debug!("HTTP {:?}", http_response);
+
+        http_response
+         // .url(url.clone())
+         .body(body).unwrap()
     }
 
     // fn spin_response_to_http_response<B: hyper::body::Body>(response: SpinResponse) -> http::Response<B> {
@@ -1417,6 +1467,7 @@ impl Client {
     fn from_spin_response(response: SpinResponse) -> Response {
         let http_response = Self::spin_response_to_hyper_response(response);
         let reqwest_response = Response::new(http_response, Accepts::default() , None);
+        debug!("REQUEST {:?}", reqwest_response);
         reqwest_response
     }
 
@@ -1463,7 +1514,10 @@ impl Client {
             //     Ok(Self::into_response(res))
             // })
             let req = Self::into_spin_request(req);
+            debug!("req prepped");
             let res: SpinResponse = spin_sdk::http::send(req).await.unwrap();
+            debug!("res received");
+            debug!("Code: {:?}", res.status());
             Ok(Self::from_spin_response(res))
             // todo!()
         }
