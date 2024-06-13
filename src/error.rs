@@ -121,7 +121,6 @@ impl Error {
         matches!(self.inner.kind, Kind::Request)
     }
 
-    /*
     #[cfg(not(target_arch = "wasm32"))]
     /// Returns true if the error is related to connect
     pub fn is_connect(&self) -> bool {
@@ -139,7 +138,6 @@ impl Error {
 
         false
     }
-    */
 
     /// Returns true if the error is related to the request or response body
     pub fn is_body(&self) -> bool {
@@ -218,14 +216,14 @@ impl StdError for Error {
     }
 }
 
-#[cfg(all(target_arch = "wasm32", target_os = "unknwon"))]
+#[cfg(target_arch = "wasm32")]
 impl From<crate::error::Error> for wasm_bindgen::JsValue {
     fn from(err: Error) -> wasm_bindgen::JsValue {
         js_sys::Error::from(err).into()
     }
 }
 
-#[cfg(all(target_arch = "wasm32", target_os = "unknwon"))]
+#[cfg(target_arch = "wasm32")]
 impl From<crate::error::Error> for js_sys::Error {
     fn from(err: Error) -> js_sys::Error {
         js_sys::Error::new(&format!("{err}"))

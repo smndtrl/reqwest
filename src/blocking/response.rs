@@ -431,9 +431,9 @@ impl Read for Response {
     }
 }
 
-// impl<T: Into<async_impl::body::Body>> From<http::Response<T>> for Response {
-//     fn from(r: http::Response<T>) -> Response {
-//         let response = async_impl::Response::from(r);
-//         Response::new(response, None, KeepCoreThreadAlive::empty())
-//     }
-// }
+impl<T: Into<async_impl::body::Body>> From<http::Response<T>> for Response {
+    fn from(r: http::Response<T>) -> Response {
+        let response = async_impl::Response::from(r);
+        Response::new(response, None, KeepCoreThreadAlive::empty())
+    }
+}

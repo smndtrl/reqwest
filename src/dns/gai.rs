@@ -1,5 +1,5 @@
 use futures_util::future::FutureExt;
-use hyper_util::client::legacy::connect::dns::{GaiResolver as HyperGaiResolver, Name};
+use hyper_util::client::legacy::connect::dns::GaiResolver as HyperGaiResolver;
 use tower_service::Service;
 
 use crate::dns::{Addrs, Name, Resolve, Resolving};

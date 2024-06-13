@@ -4,9 +4,9 @@ use http::uri::{Authority, Scheme};
 use http::Uri;
 use hyper::rt::{Read, ReadBufCursor, Write};
 use hyper_util::client::legacy::connect::{Connected, Connection};
-#[cfg(feature = "__tls")]
+#[cfg(any(feature = "socks", feature = "__tls"))]
 use hyper_util::rt::TokioIo;
-#[cfg(feature = "native-tls-crate")]
+#[cfg(feature = "default-tls")]
 use native_tls_crate::{TlsConnector, TlsConnectorBuilder};
 use tower_service::Service;
 
@@ -229,7 +229,7 @@ impl Connector {
                     let io = tls_connector.connect(&host, conn).await?;
                     let io = TokioIo::new(io);
                     return Ok(Conn {
-                        inner: self.verbose.wrap(io /*NativeTlsConn { inner: io }*/),
+                        inner: self.verbose.wrap(NativeTlsConn { inner: io }),
                         is_proxy: false,
                         tls_info: self.tls_info,
                     });
@@ -244,6 +244,8 @@ impl Connector {
                     let tls = tls.clone();
                     let host = dst.host().ok_or("no host in url")?.to_string();
                     let conn = socks::connect(proxy, dst, dns).await?;
+                    let conn = TokioIo::new(conn);
+                    let conn = TokioIo::new(conn);
                     let server_name =
                         rustls_pki_types::ServerName::try_from(host.as_str().to_owned())
                             .map_err(|_| "Invalid Server Name")?;
@@ -577,8 +579,7 @@ impl TlsInfoFactory for tokio_rustls::client::TlsStream<TokioIo<TokioIo<tokio::n
             .1
             .peer_certificates()
             .and_then(|certs| certs.first())
-            .map(|c| c.first())
-            .and_then(|c| c.map(|cc| vec![*cc]));
+            .map(|c| c.to_vec());
         Some(crate::tls::TlsInfo { peer_certificate })
     }
 }
@@ -595,8 +596,7 @@ impl TlsInfoFactory
             .1
             .peer_certificates()
             .and_then(|certs| certs.first())
-            .map(|c| c.first())
-            .and_then(|c| c.map(|cc| vec![*cc]));
+            .map(|c| c.to_vec());
         Some(crate::tls::TlsInfo { peer_certificate })
     }
 }
@@ -811,25 +811,41 @@ mod native_tls_conn {
 
     impl Connection for NativeTlsConn<TokioIo<TokioIo<TcpStream>>> {
         fn connected(&self) -> Connected {
-            self.inner
+            let connected = self
+                .inner
                 .inner()
                 .get_ref()
                 .get_ref()
                 .get_ref()
                 .inner()
-                .connected()
+                .connected();
+            #[cfg(feature = "native-tls-alpn")]
+            match self.inner.inner().get_ref().negotiated_alpn().ok() {
+                Some(Some(alpn_protocol)) if alpn_protocol == b"h2" => connected.negotiated_h2(),
+                _ => connected,
+            }
+            #[cfg(not(feature = "native-tls-alpn"))]
+            connected
         }
     }
 
     impl Connection for NativeTlsConn<TokioIo<MaybeHttpsStream<TokioIo<TcpStream>>>> {
         fn connected(&self) -> Connected {
-            self.inner
+            let connected = self
+                .inner
                 .inner()
                 .get_ref()
                 .get_ref()
                 .get_ref()
                 .inner()
-                .connected()
+                .connected();
+            #[cfg(feature = "native-tls-alpn")]
+            match self.inner.inner().get_ref().negotiated_alpn().ok() {
+                Some(Some(alpn_protocol)) if alpn_protocol == b"h2" => connected.negotiated_h2(),
+                _ => connected,
+            }
+            #[cfg(not(feature = "native-tls-alpn"))]
+            connected
         }
     }
 
@@ -1125,8 +1141,6 @@ mod verbose {
                     */
                     log::trace!("TODO: verbose poll_read");
                     Poll::Ready(Ok(()))
-                    */
-                    todo!("verbose poll_read");
                 }
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Pending => Poll::Pending,

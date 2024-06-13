@@ -117,7 +117,7 @@ enum Inner {
 /// A future attempt to poll the response body for EOF so we know whether to use gzip or not.
 struct Pending(PeekableIoStream, DecoderType);
 
-struct IoStream(ResponseBody);
+pub(crate) struct IoStream<B = ResponseBody>(B);
 
 enum DecoderType {
     #[cfg(feature = "gzip")]
@@ -342,6 +342,14 @@ impl HttpBody for Decoder {
                     None => Poll::Ready(None),
                 }
             }
+            #[cfg(feature = "zstd")]
+            Inner::Zstd(ref mut decoder) => {
+                match futures_core::ready!(Pin::new(decoder).poll_next(cx)) {
+                    Some(Ok(bytes)) => Poll::Ready(Some(Ok(Frame::data(bytes.freeze())))),
+                    Some(Err(err)) => Poll::Ready(Some(Err(crate::error::decode_io(err)))),
+                    None => Poll::Ready(None),
+                }
+            }
             #[cfg(feature = "deflate")]
             Inner::Deflate(ref mut decoder) => {
                 match futures_core::ready!(Pin::new(decoder).poll_next(cx)) {
@@ -439,7 +447,7 @@ where
                         continue;
                     }
                 }
-                Some(Err(err)) => Poll::Ready(Some(Err(error::into_io(err)))),
+                Some(Err(err)) => Poll::Ready(Some(Err(error::into_io(err.into())))),
                 None => Poll::Ready(None),
             };
         }
