@@ -228,14 +228,6 @@ tracing = { version = "0.1" }
 # wasi-http-client = { path = "../wasm-http-tools/crates/wasi-http-client" }
 # wasi-async-runtime = { path = "../wasm-http-tools/crates/wasi-async-runtime", features = [ "send" ] }
 
-# rustls-tls
-# hyper-rustls = { version = "0.26.0", default-features = false, optional = true }
-rustls = { version = "0.22.2", optional = true }
-rustls-pki-types = { version = "1.1.0", features = ["alloc"] ,optional = true }
-# tokio-rustls = { version = "0.25", optional = true }
-# webpki-roots = { version = "0.26.0", optional = true }
-# rustls-native-certs = { version = "0.6", optional = true }
-rustls-pemfile = { version = "1.0", optional = true }
 
 # rustls-tls
 # hyper-rustls = { version = "0.26.0", default-features = false, optional = true }
