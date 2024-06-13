@@ -134,7 +134,9 @@ impl Body {
     pub(crate) fn into_async(self) -> (Option<Sender>, async_impl::Body, Option<u64>) {
         match self.kind {
             Kind::Reader(read, len) => {
-                let (tx, rx) = mpsc::channel(0);
+                let (tx, rx) = hyper::body::Incoming::new(hyper::body::incoming::Kind::Chan {
+                    
+                });
                 let tx = Sender {
                     body: (read, len),
                     tx,

@@ -14,7 +14,7 @@ use http::header::{
 use http::uri::Scheme;
 use http::Uri;
 use hyper_util::client::legacy::connect::HttpConnector;
-#[cfg(feature = "default-tls")]
+#[cfg(feature = "native-tls-crate")]
 use native_tls_crate::TlsConnector;
 use pin_project_lite::pin_project;
 use std::future::Future;
@@ -509,7 +509,7 @@ impl ClientBuilder {
                     }
 
                     #[cfg(feature = "rustls-tls-webpki-roots")]
-                    if config.tls_built_in_certs_webpki {
+                    if config.tls_built_in_root_certs {
                         root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
                     }
 
@@ -578,10 +578,8 @@ impl ClientBuilder {
                         });
 
                     // Build TLS config
-                    let config_builder = rustls::ClientConfig::builder_with_provider(provider)
-                        .with_protocol_versions(&versions)
-                        .map_err(|_| crate::error::builder("invalid TLS versions"))?
-                        .with_root_certificates(root_cert_store);
+                    let config_builder =
+                        rustls::ClientConfig::builder().with_root_certificates(root_cert_store);
 
                     // Finalize TLS config
                     let mut tls = if let Some(id) = config.identity {
@@ -676,11 +674,9 @@ impl ClientBuilder {
 
         let mut builder =
             hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new());
-        #[cfg(feature = "http2")]
-        {
-            if matches!(config.http_version_pref, HttpVersionPref::Http2) {
-                builder.http2_only(true);
-            }
+        if matches!(config.http_version_pref, HttpVersionPref::Http2) {
+            builder.http2_only(true);
+        }
 
             if let Some(http2_initial_stream_window_size) = config.http2_initial_stream_window_size
             {
