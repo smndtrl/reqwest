@@ -4,9 +4,10 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use bytes::Bytes;
-use http_body_util::BodyExt;
+use encoding_rs::{Encoding, UTF_8};
 use hyper::{HeaderMap, StatusCode, Version};
 use hyper_util::client::legacy::connect::HttpInfo;
+use mime::Mime;
 #[cfg(feature = "json")]
 use serde::de::DeserializeOwned;
 #[cfg(feature = "json")]
@@ -20,11 +21,6 @@ use crate::async_impl::body::ResponseBody;
 #[cfg(feature = "cookies")]
 use crate::cookie;
 
-#[cfg(feature = "charset")]
-use encoding_rs::{Encoding, UTF_8};
-#[cfg(feature = "charset")]
-use mime::Mime;
-
 /// A Response to a submitted `Request`.
 pub struct Response {
     pub(super) res: hyper::Response<Decoder>,
@@ -35,7 +31,7 @@ pub struct Response {
 
 impl Response {
     pub(super) fn new(
-        res: hyper::Response<ResponseBody>,
+        res: hyper::Response<hyper::body::Incoming>,
         url: Url,
         accepts: Accepts,
         total_timeout: Option<Pin<Box<Sleep>>>,
@@ -44,7 +40,7 @@ impl Response {
         let (mut parts, body) = res.into_parts();
         let decoder = Decoder::detect(
             &mut parts.headers,
-            super::body::response(body, total_timeout, read_timeout),
+            super::body::response(body, timeout),
             accepts,
         );
         let res = hyper::Response::from_parts(parts, decoder);
@@ -439,15 +435,9 @@ impl fmt::Debug for Response {
     }
 }
 
-/// A `Response` can be piped as the `Body` of another request.
-impl From<Response> for Body {
-    fn from(r: Response) -> Body {
-        Body::streaming(r.res.into_body())
-    }
-}
-
+/*
 // I'm not sure this conversion is that useful... People should be encouraged
-// to use `http::Response`, not `reqwest::Response`.
+// to use `http::Resposne`, not `reqwest::Response`.
 impl<T: Into<Body>> From<http::Response<T>> for Response {
     fn from(r: http::Response<T>) -> Response {
         use crate::response::ResponseUrl;
@@ -473,13 +463,10 @@ impl<T: Into<Body>> From<http::Response<T>> for Response {
 }
  */
 
-/// A `Response` can be converted into a `http::Response`.
-// It's supposed to be the inverse of the conversion above.
-impl From<Response> for http::Response<Body> {
-    fn from(r: Response) -> http::Response<Body> {
-        let (parts, body) = r.res.into_parts();
-        let body = Body::streaming(body);
-        http::Response::from_parts(parts, body)
+/// A `Response` can be piped as the `Body` of another request.
+impl From<Response> for Body {
+    fn from(r: Response) -> Body {
+        Body::streaming(r.res.into_body())
     }
 }
 

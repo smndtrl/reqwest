@@ -1,6 +1,6 @@
 //! DNS resolution via the [hickory-resolver](https://github.com/hickory-dns/hickory-dns) crate
 
-use hickory_resolver::{lookup_ip::LookupIpIntoIter, system_conf, TokioAsyncResolver};
+use hyper_util::client::legacy::connect::dns::Name;
 use once_cell::sync::OnceCell;
 
 use std::io;
