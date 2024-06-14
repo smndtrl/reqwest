@@ -1,7 +1,7 @@
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-// #![cfg_attr(test, deny(warnings))] // TODO(simon)
+#![cfg_attr(test, deny(warnings))]
 
 //! # reqwest
 //!
@@ -310,9 +310,9 @@ pub use self::response::ResponseBuilderExt;
 /// - supplied `Url` cannot be parsed
 /// - there was an error while sending request
 /// - redirect limit was exhausted
-// pub async fn get<T: IntoUrl>(url: T) -> crate::Result<Response> {
-//     Client::builder().build()?.get(url).send().await
-// }
+pub async fn get<T: IntoUrl>(url: T) -> crate::Result<Response> {
+    Client::builder().build()?.get(url).send().await
+}
 
 fn _assert_impls() {
     fn assert_send<T: Send>() {}

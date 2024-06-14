@@ -1,3 +1,5 @@
+//! WASI Async Response
+
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::pin::Pin;
@@ -24,6 +26,7 @@ use crate::cookie;
 use futures_util::StreamExt;
 // pub type InnerResponseBody = Box<Vec<u8>>;
 use http_body_util::combinators::BoxBody;
+/// inner body
 pub type InnerResponseBody = BoxBody<Bytes, crate::Error>;
 /// A Response to a submitted `Request`.
 pub struct Response {

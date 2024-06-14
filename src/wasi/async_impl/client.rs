@@ -1,3 +1,5 @@
+//! WASI Client
+
 #[cfg(any(feature = "native-tls", feature = "__rustls",))]
 use std::any::Any;
 use std::net::IpAddr;
@@ -37,7 +39,7 @@ use crate::cookie;
 // use crate::dns::trust_dns::TrustDnsResolver;
 // use crate::dns::{gai::GaiResolver, DnsResolverWithOverrides, DynResolver, Resolve};
 use crate::error;
-use crate::into_url::{expect_uri, try_uri};
+// use crate::into_url::{expect_uri, try_uri};
 use crate::redirect::{self, remove_sensitive_headers};
 #[cfg(feature = "__tls")]
 use crate::tls::{self, TlsBackend};

@@ -1,3 +1,5 @@
+//! WASI Async Request
+
 use std::convert::TryFrom;
 use std::fmt;
 use std::future::Future;
