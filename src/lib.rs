@@ -429,6 +429,7 @@ if_wasi_http! {
     pub mod wasi;
     #[cfg(feature = "blocking")]
     pub mod blocking {
+        //! WASI 
         pub use super::wasi::blocking::*;
     }
     

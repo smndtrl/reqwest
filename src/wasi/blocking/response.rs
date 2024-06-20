@@ -1,3 +1,5 @@
+//! WASI blocking response
+//! 
 use bytes::Bytes;
 use encoding_rs::{Encoding, UTF_8};
 use http::{Extensions, HeaderMap, StatusCode, Version};

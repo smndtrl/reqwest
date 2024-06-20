@@ -1,3 +1,4 @@
+//! WASI blocking request
 use http::{HeaderMap, HeaderName, HeaderValue, Method, Version};
 use http::header::{CONTENT_TYPE};
 use url::Url;

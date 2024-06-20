@@ -1,3 +1,4 @@
+//! WASI blocking body
 use bytes::Bytes;
 use std::fmt;
 use std::fs::File;

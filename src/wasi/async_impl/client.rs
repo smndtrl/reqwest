@@ -43,8 +43,8 @@ use crate::error;
 use crate::redirect::{self, remove_sensitive_headers};
 #[cfg(feature = "__tls")]
 use crate::tls::{self, TlsBackend};
-// #[cfg(feature = "__tls")]
-// use crate::Certificate;
+#[cfg(feature = "__tls")]
+use crate::Certificate;
 #[cfg(any(feature = "native-tls", feature = "__rustls"))]
 use crate::Identity;
 use crate::{IntoUrl, Method, Proxy, StatusCode, Url};
@@ -124,8 +124,8 @@ struct Config {
     redirect_policy: redirect::Policy,
     referer: bool,
     timeout: Option<Duration>,
-    // #[cfg(feature = "__tls")]
-    // root_certs: Vec<Certificate>,
+    #[cfg(feature = "__tls")]
+    root_certs: Vec<Certificate>,
     // #[cfg(feature = "__tls")]
     // tls_built_in_root_certs: bool,
     #[cfg(feature = "__tls")]
@@ -207,8 +207,8 @@ impl ClientBuilder {
                 redirect_policy: redirect::Policy::default(),
                 referer: true,
                 timeout: None,
-                // #[cfg(feature = "__tls")]
-                // root_certs: Vec::new(),
+                #[cfg(feature = "__tls")]
+                root_certs: Vec::new(),
                 // #[cfg(feature = "__tls")]
                 // tls_built_in_root_certs: true,
                 #[cfg(any(feature = "native-tls", feature = "__rustls"))]
@@ -832,19 +832,19 @@ impl ClientBuilder {
     ///
     /// This requires the optional `default-tls`, `native-tls`, or `rustls-tls(-...)`
     /// feature to be enabled.
-    // #[cfg(feature = "__tls")]
-    // #[cfg_attr(
-    //     docsrs,
-    //     doc(cfg(any(
-    //         feature = "default-tls",
-    //         feature = "native-tls",
-    //         feature = "rustls-tls"
-    //     )))
-    // )]
-    // pub fn add_root_certificate(mut self, cert: Certificate) -> ClientBuilder {
-    //     self.config.root_certs.push(cert);
-    //     self
-    // }
+    #[cfg(feature = "__tls")]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(
+            feature = "default-tls",
+            feature = "native-tls",
+            feature = "rustls-tls"
+        )))
+    )]
+    pub fn add_root_certificate(mut self, cert: Certificate) -> ClientBuilder {
+        self.config.root_certs.push(cert);
+        self
+    }
 
     /// Controls the use of built-in/preloaded certificates during certificate validation.
     ///
