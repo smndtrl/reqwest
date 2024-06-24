@@ -419,8 +419,8 @@ if_wasi_http! {
     #[cfg(feature = "__tls")]
     // Re-exports, to be removed in a future release
     pub use tls::{Certificate, Identity};
-    // #[cfg(feature = "multipart")]
-    // pub use self::async_impl::multipart;
+    #[cfg(feature = "multipart")]
+    pub use self::async_impl::multipart;
 
 
     mod async_impl {

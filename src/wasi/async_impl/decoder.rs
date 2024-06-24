@@ -93,12 +93,12 @@ impl fmt::Debug for Decoder {
 }
 
 impl Decoder {
-    #[cfg(all(feature = "blocking", feature = "multipart"))]
-    pub(crate) fn empty() -> Decoder {
-        Decoder {
-            inner: Inner::PlainText(crate::Body::empty().into_stream()),
-        }
-    }
+    // #[cfg(all(feature = "blocking", feature = "multipart"))]
+    // pub(crate) fn empty() -> Decoder {
+    //     Decoder {
+    //         inner: Inner::PlainText(crate::Body::empty().into_stream()),
+    //     }
+    // }
 
     /// A plain text decoder.
     ///

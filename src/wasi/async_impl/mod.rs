@@ -8,6 +8,8 @@ pub use self::response::Response;
 use self::decoder::Decoder;
 // mod shim;
 pub mod client;
+#[cfg(feature = "multipart")]
+pub mod multipart;
 pub mod request;
 pub mod response;
 pub mod body;

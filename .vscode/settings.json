@@ -4,15 +4,16 @@
         "json",
         "stream"
     ],
-    "rust-analyzer.check.targets": "wasm32-wasi",
     "rust-analyzer.diagnostics.experimental.enable": true,
     "rust-analyzer.lens.references.trait.enable": true,
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.cargo.features": [
         "json",
         "stream",
+        "multipart",
         "gzip", "brotli", "deflate",
         "rustls-tls"
     ],
-    "rust-analyzer.cargo.noDefaultFeatures": true
+    "rust-analyzer.cargo.noDefaultFeatures": true,
+    "rust-analyzer.cargo.target": "wasm32-wasi"
 }

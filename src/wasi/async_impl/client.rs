@@ -9,12 +9,14 @@ use std::{collections::HashMap, convert::TryInto, net::SocketAddr};
 use std::{fmt, str};
 
 use bytes::Bytes;
+use futures::{StreamExt, TryStreamExt};
 use http::header::{
     Entry, HeaderMap, HeaderValue, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
     CONTENT_TYPE, LOCATION, PROXY_AUTHORIZATION, RANGE, REFERER, TRANSFER_ENCODING, USER_AGENT,
 };
 use http::uri::Scheme;
 use http::Uri;
+use http_body_util::BodyExt;
 // use hyper_util::client::legacy::connect::HttpConnector;
 // #[cfg(feature = "native-tls-crate")]
 // use native_tls_crate::TlsConnector;
@@ -1384,7 +1386,7 @@ impl Client {
 
     }
 
-    fn into_spin_request(request: Request) -> SpinRequest {
+    async fn into_spin_request(request: Request) -> SpinRequest {
         debug!("REQWEST {:?}", request);
         // let mut spin_request = SpinRequestBuilder::new(request.method().clone().into(), request.url().as_str());
 
@@ -1399,13 +1401,23 @@ impl Client {
 
         // let request = spin_request.build();
 
+
+        let (method, url, headers, body, _, _) = request.pieces();
+
         // debug!("SPIN {:?}, {:?}, {:?}, {:?}, {:?}", request.method(), request.uri(), request.path(), request.query(), request.body());
-        let body = match request.body() {
+        let body = match body {
             Some(body) => {
                 
-                let b = body.as_bytes().expect("no body bytes").to_vec();
-                debug!("some body found {:?}", b);
-                b
+                let mut stream = body.into_data_stream();
+
+                let mut result = Vec::new();
+                while let Some(item) = stream.try_next().await.unwrap() {
+                    result.extend_from_slice(&item);
+                }
+                // let a = consume_stream(stream).await?;
+                // let b = body.as_bytes().expect("no body bytes").to_vec();
+                debug!("some body found {:?}", result);
+                result
             },
             _ => {
                 debug!("no body found");
@@ -1413,8 +1425,8 @@ impl Client {
             }
         };
 
-        let spin_request =SpinRequestBuilder::new(request.method().clone().into(), request.url().as_str())
-            .headers(request.headers())
+        let spin_request =SpinRequestBuilder::new(method.into(), url.as_str())
+            .headers(&headers)
             .body(body)
             .build();
 
@@ -1515,7 +1527,7 @@ impl Client {
             //     // let body = read_to_end(res).await;
             //     Ok(Self::into_response(res))
             // })
-            let req = Self::into_spin_request(req);
+            let req = Self::into_spin_request(req).await;
             debug!("req prepped");
             let res: SpinResponse = spin_sdk::http::send(req).await.unwrap();
             debug!("res received");
@@ -2203,4 +2215,15 @@ fn add_cookie_header(headers: &mut HeaderMap, cookie_store: &dyn cookie::CookieS
 //         assert!(err.is_builder());
 //         assert_eq!(url_str, err.url().unwrap().as_str());
 //     }
+// }
+
+// async fn consume_stream<S>(mut stream: S) -> Result<Vec<u8>, Box<dyn Error>>
+// where
+//     S: TryStreamExt<Ok = Bytes, Error = Box<dyn Error>> + Unpin,
+// {
+//     let mut result = Vec::new();
+//     while let Some(item) = stream.try_next().await? {
+//         result.extend_from_slice(&item);
+//     }
+//     Ok(result)
 // }
