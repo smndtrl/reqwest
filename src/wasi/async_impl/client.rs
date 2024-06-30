@@ -1387,7 +1387,7 @@ impl Client {
     }
 
     async fn into_spin_request(request: Request) -> SpinRequest {
-        debug!("REQWEST {:?}", request);
+        // debug!("REQWEST {:?}", request);
         // let mut spin_request = SpinRequestBuilder::new(request.method().clone().into(), request.url().as_str());
 
 
@@ -1416,7 +1416,7 @@ impl Client {
                 }
                 // let a = consume_stream(stream).await?;
                 // let b = body.as_bytes().expect("no body bytes").to_vec();
-                debug!("some body found {:?}", result);
+                // debug!("some body found {:?}", result);
                 result
             },
             _ => {
@@ -1430,7 +1430,7 @@ impl Client {
             .body(body)
             .build();
 
-        debug!("SPIN {:?}, {:?}, {:?}, {:?}, {:?}, {:?}", spin_request.method(), spin_request.uri(), spin_request.path(), spin_request.query(), spin_request.headers().collect::<Vec<(_,_)>>(), spin_request.body());
+        // debug!("SPIN {:?}, {:?}, {:?}, {:?}, {:?}, {:?}", spin_request.method(), spin_request.uri(), spin_request.path(), spin_request.query(), spin_request.headers().collect::<Vec<(_,_)>>(), spin_request.body());
 
         spin_request
  
@@ -1455,14 +1455,14 @@ impl Client {
          }
 
 
-        debug!("SPIN {:?}", response);
+        // debug!("SPIN {:?}", response);
         let rawbody = response.into_body();
         let body = http_body_util::Full::new(Bytes::from(rawbody));
 
         
 
 
-        debug!("HTTP {:?}", http_response);
+        // debug!("HTTP {:?}", http_response);
 
         http_response
          // .url(url.clone())
@@ -1481,7 +1481,7 @@ impl Client {
     fn from_spin_response(response: SpinResponse) -> Response {
         let http_response = Self::spin_response_to_hyper_response(response);
         let reqwest_response = Response::new(http_response, Accepts::default() , None);
-        debug!("REQUEST {:?}", reqwest_response);
+        // debug!("REQUEST {:?}", reqwest_response);
         reqwest_response
     }
 
@@ -1514,7 +1514,7 @@ impl Client {
     pub(super) fn execute_request(&self, req: Request) -> 
     impl Future<Output = Result<Response, crate::Error>>  {
         async move {
-            debug!("execute_request");
+            // debug!("execute_request");
             // /// wasi-http-client
             // wasi_async_runtime::block_on( |reactor| async {
             //     let client = WasiClient::new(reactor);
@@ -1528,10 +1528,10 @@ impl Client {
             //     Ok(Self::into_response(res))
             // })
             let req = Self::into_spin_request(req).await;
-            debug!("req prepped");
+            // debug!("req prepped");
             let res: SpinResponse = spin_sdk::http::send(req).await.unwrap();
-            debug!("res received");
-            debug!("Code: {:?}", res.status());
+            // debug!("res received");
+            // debug!("Code: {:?}", res.status());
             Ok(Self::from_spin_response(res))
             // todo!()
         }
