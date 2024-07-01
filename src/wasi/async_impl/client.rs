@@ -1404,7 +1404,7 @@ impl Client {
 
         let (method, url, headers, body, _, _) = request.pieces();
 
-        debug!("SPIN {:?}, {:?}, {:?}, {:?}, {:?}", request.method(), method, url, headers, request.body());
+        debug!("SPIN {:?}, {:?}, {:?}", &method, &url, &headers);
         let body = match body {
             Some(body) => {
                 
