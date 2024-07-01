@@ -1404,7 +1404,7 @@ impl Client {
 
         let (method, url, headers, body, _, _) = request.pieces();
 
-        debug!("SPIN {:?}, {:?}, {:?}", &method, &url, &headers);
+        // debug!("SPIN {:?}, {:?}, {:?}", &method, &url, &headers);
         let body = match body {
             Some(body) => {
                 
@@ -1420,12 +1420,12 @@ impl Client {
                 result
             },
             _ => {
-                debug!("no body found");
+                // debug!("no body found");
                 Vec::new()
             }
         };
-        let first_100_bytes = &body[..std::cmp::min(100, body.len())];
-        debug!("SPIN BODY: {:?}", first_100_bytes);
+        // let first_100_bytes = &body[..std::cmp::min(100, body.len())];
+        // debug!("SPIN BODY: {:?}", first_100_bytes);
 
         let spin_request =SpinRequestBuilder::new(method.into(), url.as_str())
             .headers(&headers)

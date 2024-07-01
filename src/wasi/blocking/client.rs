@@ -190,7 +190,7 @@ impl Client {
     /// This method fails if there was an error while sending request,
     /// redirect loop was detected or redirect limit was exhausted.
     pub fn execute(&self, request: Request) -> Result<Response, crate::Error> {
-        tracing::debug!("execute");
+        // tracing::debug!("execute");
         self.execute_inner(request)
     }
 
