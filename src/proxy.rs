@@ -7,7 +7,6 @@ use crate::into_url::{IntoUrl, IntoUrlSealed};
 use crate::Url;
 use http::{header::HeaderValue, Uri};
 use ipnet::IpNet;
-use once_cell::sync::Lazy;
 use percent_encoding::percent_decode;
 use std::collections::HashMap;
 use std::env;
@@ -29,10 +28,6 @@ use system_configuration::{
     sys::schema_definitions::kSCPropNetProxiesHTTPSPort,
     sys::schema_definitions::kSCPropNetProxiesHTTPSProxy,
 };
-#[cfg(target_os = "windows")]
-use winreg::enums::HKEY_CURRENT_USER;
-#[cfg(target_os = "windows")]
-use winreg::RegKey;
 
 /// Configuration of a proxy that a `Client` should pass requests to.
 ///
@@ -110,6 +105,8 @@ pub enum ProxyScheme {
         host: http::uri::Authority,
     },
     #[cfg(feature = "socks")]
+    Socks4 { addr: SocketAddr },
+    #[cfg(feature = "socks")]
     Socks5 {
         addr: SocketAddr,
         auth: Option<(String, String)>,
@@ -144,14 +141,11 @@ impl<S: IntoUrl> IntoProxyScheme for S {
                 let mut source = e.source();
                 while let Some(err) = source {
                     if let Some(parse_error) = err.downcast_ref::<url::ParseError>() {
-                        match parse_error {
-                            url::ParseError::RelativeUrlWithoutBase => {
-                                presumed_to_have_scheme = false;
-                                break;
-                            }
-                            _ => {}
+                        if *parse_error == url::ParseError::RelativeUrlWithoutBase {
+                            presumed_to_have_scheme = false;
+                            break;
                         }
-                    } else if let Some(_) = err.downcast_ref::<crate::error::BadScheme>() {
+                    } else if err.downcast_ref::<crate::error::BadScheme>().is_some() {
                         presumed_to_have_scheme = false;
                         break;
                     }
@@ -282,13 +276,9 @@ impl Proxy {
     }
 
     pub(crate) fn system() -> Proxy {
-        let mut proxy = if cfg!(feature = "__internal_proxy_sys_no_cache") {
-            Proxy::new(Intercept::System(Arc::new(get_sys_proxies(
-                get_from_platform(),
-            ))))
-        } else {
-            Proxy::new(Intercept::System(SYS_PROXIES.clone()))
-        };
+        let mut proxy = Proxy::new(Intercept::System(Arc::new(get_sys_proxies(
+            get_from_platform(),
+        ))));
         proxy.no_proxy = NoProxy::from_env();
         proxy
     }
@@ -463,10 +453,10 @@ impl NoProxy {
     /// * If neither environment variable is set, `None` is returned
     /// * Entries are expected to be comma-separated (whitespace between entries is ignored)
     /// * IP addresses (both IPv4 and IPv6) are allowed, as are optional subnet masks (by adding /size,
-    /// for example "`192.168.1.0/24`").
+    ///   for example "`192.168.1.0/24`").
     /// * An entry "`*`" matches all hostnames (this is the only wildcard allowed)
     /// * Any other entry is considered a domain name (and may contain a leading dot, for example `google.com`
-    /// and `.google.com` are equivalent) and would match both that domain AND all subdomains.
+    ///   and `.google.com` are equivalent) and would match both that domain AND all subdomains.
     ///
     /// For example, if `"NO_PROXY=google.com, 192.168.1.0/24"` was set, all of the following would match
     /// (and therefore would bypass the proxy):
@@ -581,6 +571,16 @@ impl ProxyScheme {
         })
     }
 
+    /// Proxy traffic via the specified socket address over SOCKS4
+    ///
+    /// # Note
+    ///
+    /// Current SOCKS4 support is provided via blocking IO.
+    #[cfg(feature = "socks")]
+    fn socks4(addr: SocketAddr) -> crate::Result<Self> {
+        Ok(ProxyScheme::Socks4 { addr })
+    }
+
     /// Proxy traffic via the specified socket address over SOCKS5
     ///
     /// # Note
@@ -632,6 +632,10 @@ impl ProxyScheme {
                 *auth = Some(header);
             }
             #[cfg(feature = "socks")]
+            ProxyScheme::Socks4 { .. } => {
+                panic!("Socks4 is not supported for this method")
+            }
+            #[cfg(feature = "socks")]
             ProxyScheme::Socks5 { ref mut auth, .. } => {
                 *auth = Some((username.into(), password.into()));
             }
@@ -647,8 +651,12 @@ impl ProxyScheme {
                 *auth = Some(header_value);
             }
             #[cfg(feature = "socks")]
+            ProxyScheme::Socks4 { .. } => {
+                panic!("Socks4 is not supported for this method")
+            }
+            #[cfg(feature = "socks")]
             ProxyScheme::Socks5 { .. } => {
-                panic!("Socks is not supported for this method")
+                panic!("Socks5 is not supported for this method")
             }
         }
     }
@@ -666,6 +674,8 @@ impl ProxyScheme {
                 }
             }
             #[cfg(feature = "socks")]
+            ProxyScheme::Socks4 { .. } => {}
+            #[cfg(feature = "socks")]
             ProxyScheme::Socks5 { .. } => {}
         }
 
@@ -674,7 +684,7 @@ impl ProxyScheme {
 
     /// Convert a URL into a proxy scheme
     ///
-    /// Supported schemes: HTTP, HTTPS, (SOCKS5, SOCKS5H if `socks` feature is enabled).
+    /// Supported schemes: HTTP, HTTPS, (SOCKS4, SOCKS5, SOCKS5H if `socks` feature is enabled).
     // Private for now...
     fn parse(url: Url) -> crate::Result<Self> {
         use url::Position;
@@ -684,7 +694,7 @@ impl ProxyScheme {
         let to_addr = || {
             let addrs = url
                 .socket_addrs(|| match url.scheme() {
-                    "socks5" | "socks5h" => Some(1080),
+                    "socks4" | "socks5" | "socks5h" => Some(1080),
                     _ => None,
                 })
                 .map_err(crate::error::builder)?;
@@ -697,6 +707,8 @@ impl ProxyScheme {
         let mut scheme = match url.scheme() {
             "http" => Self::http(&url[Position::BeforeHost..Position::AfterPort])?,
             "https" => Self::https(&url[Position::BeforeHost..Position::AfterPort])?,
+            #[cfg(feature = "socks")]
+            "socks4" => Self::socks4(to_addr()?)?,
             #[cfg(feature = "socks")]
             "socks5" => Self::socks5(to_addr()?)?,
             #[cfg(feature = "socks")]
@@ -719,6 +731,8 @@ impl ProxyScheme {
             ProxyScheme::Http { .. } => "http",
             ProxyScheme::Https { .. } => "https",
             #[cfg(feature = "socks")]
+            ProxyScheme::Socks4 { .. } => "socks4",
+            #[cfg(feature = "socks")]
             ProxyScheme::Socks5 { .. } => "socks5",
         }
     }
@@ -728,6 +742,8 @@ impl ProxyScheme {
         match self {
             ProxyScheme::Http { host, .. } => host.as_str(),
             ProxyScheme::Https { host, .. } => host.as_str(),
+            #[cfg(feature = "socks")]
+            ProxyScheme::Socks4 { .. } => panic!("socks4"),
             #[cfg(feature = "socks")]
             ProxyScheme::Socks5 { .. } => panic!("socks5"),
         }
@@ -739,6 +755,10 @@ impl fmt::Debug for ProxyScheme {
         match self {
             ProxyScheme::Http { auth: _auth, host } => write!(f, "http://{host}"),
             ProxyScheme::Https { auth: _auth, host } => write!(f, "https://{host}"),
+            #[cfg(feature = "socks")]
+            ProxyScheme::Socks4 { addr } => {
+                write!(f, "socks4://{addr}")
+            }
             #[cfg(feature = "socks")]
             ProxyScheme::Socks5 {
                 addr,
@@ -848,9 +868,6 @@ impl Dst for Uri {
     }
 }
 
-static SYS_PROXIES: Lazy<Arc<SystemProxyMap>> =
-    Lazy::new(|| Arc::new(get_sys_proxies(get_from_platform())));
-
 /// Get system proxies information.
 ///
 /// All platforms will check for proxy settings via environment variables.
@@ -897,6 +914,13 @@ fn insert_proxy(proxies: &mut SystemProxyMap, scheme: impl Into<String>, addr: S
 fn get_from_environment() -> SystemProxyMap {
     let mut proxies = HashMap::new();
 
+    if !(insert_from_env(&mut proxies, "http", "ALL_PROXY")
+        && insert_from_env(&mut proxies, "https", "ALL_PROXY"))
+    {
+        insert_from_env(&mut proxies, "http", "all_proxy");
+        insert_from_env(&mut proxies, "https", "all_proxy");
+    }
+
     if is_cgi() {
         if log::log_enabled!(log::Level::Warn) && env::var_os("HTTP_PROXY").is_some() {
             log::warn!("HTTP_PROXY environment variable ignored in CGI");
@@ -907,13 +931,6 @@ fn get_from_environment() -> SystemProxyMap {
 
     if !insert_from_env(&mut proxies, "https", "HTTPS_PROXY") {
         insert_from_env(&mut proxies, "https", "https_proxy");
-    }
-
-    if !(insert_from_env(&mut proxies, "http", "ALL_PROXY")
-        && insert_from_env(&mut proxies, "https", "ALL_PROXY"))
-    {
-        insert_from_env(&mut proxies, "http", "all_proxy");
-        insert_from_env(&mut proxies, "https", "all_proxy");
     }
 
     proxies
@@ -937,12 +954,11 @@ fn is_cgi() -> bool {
 
 #[cfg(target_os = "windows")]
 fn get_from_platform_impl() -> Result<Option<String>, Box<dyn Error>> {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let internet_setting: RegKey =
-        hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")?;
+    let internet_setting = windows_registry::CURRENT_USER
+        .open("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")?;
     // ensure the proxy is enable, if the value doesn't exist, an error will returned.
-    let proxy_enable: u32 = internet_setting.get_value("ProxyEnable")?;
-    let proxy_server: String = internet_setting.get_value("ProxyServer")?;
+    let proxy_enable = internet_setting.get_u32("ProxyEnable")?;
+    let proxy_server = internet_setting.get_string("ProxyServer")?;
 
     Ok((proxy_enable == 1).then_some(proxy_server))
 }
@@ -1300,7 +1316,10 @@ mod tests {
         assert_eq!(p.host(), "127.0.0.1");
 
         assert_eq!(all_proxies.len(), 2);
-        assert!(all_proxies.values().all(|p| p.host() == "127.0.0.2"));
+        // Set by ALL_PROXY
+        assert_eq!(all_proxies["https"].host(), "127.0.0.2");
+        // Overwritten by the more specific HTTP_PROXY
+        assert_eq!(all_proxies["http"].host(), "127.0.0.1");
     }
 
     #[cfg(any(target_os = "windows", target_os = "macos"))]

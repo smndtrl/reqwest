@@ -432,7 +432,7 @@ impl Response {
 impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Response")
-            .field("url", self.url())
+            .field("url", &self.url().as_str())
             .field("status", &self.status())
             .field("headers", self.headers())
             .finish()
@@ -442,7 +442,7 @@ impl fmt::Debug for Response {
 /// A `Response` can be piped as the `Body` of another request.
 impl From<Response> for Body {
     fn from(r: Response) -> Body {
-        Body::streaming(r.res.into_body())
+        Body::wrap(r.res.into_body())
     }
 }
 
@@ -477,7 +477,7 @@ impl<T: Into<Body>> From<http::Response<T>> for Response {
 impl From<Response> for http::Response<Body> {
     fn from(r: Response) -> http::Response<Body> {
         let (parts, body) = r.res.into_parts();
-        let body = Body::streaming(body);
+        let body = Body::wrap(body);
         http::Response::from_parts(parts, body)
     }
 }
