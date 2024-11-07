@@ -195,7 +195,7 @@ wasm-bindgen = "0.2.89"
 wasm-bindgen-futures = "0.4.18"
 wasm-streams = { version = "0.4", optional = true }
 
-[target.'cfg(all(target_os = "wasi", target_env = "p2"))'.dependencies]
+[target.'cfg(all(target_os = "wasi", any(target_env = "p1", target_env = "p2")))'.dependencies]
 wasi = "=0.13.3" # For compatibility, pin to wasi@0.2.2 bindings
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
