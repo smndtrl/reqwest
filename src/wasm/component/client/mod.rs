@@ -181,6 +181,25 @@ fn fetch(req: Request) -> crate::Result<Response> {
         ))
     })?;
 
+    let outgoing_body = outgoing_request
+        .body()
+        .map_err(|_| crate::error::request("http request cannot open body"))?;
+
+    if let Some(body) = req.body() {
+        if let Some(bytes) = body.as_bytes() {
+            if !body.is_empty() {
+                let request_body = outgoing_body
+                    .write()
+                    .map_err(|_| crate::error::request("http request cannot open body"))?;
+                request_body
+                    .blocking_write_and_flush(bytes)
+                    .map_err(|_| crate::error::request("http request cannot write to body"))?;
+            }
+            wasi::http::types::OutgoingBody::finish(outgoing_body, None)
+                .map_err(|_| crate::error::request("http request cannot finish writing to body"))?;
+        }
+    }
+
     let response = match wasi::http::outgoing_handler::handle(outgoing_request, None) {
         Ok(resp) => {
             resp.subscribe().block();
@@ -193,12 +212,27 @@ fn fetch(req: Request) -> crate::Result<Response> {
                 Some(Ok(response)) => response.map_err(crate::error::request),
             }?;
 
-            Response::new(http::Response::new(response), url.clone())
+            let (mut parts, _) = http::Response::builder().body("").unwrap().into_parts();
+            parts.status = http::StatusCode::from_u16(response.status()).expect("status codes should never be incompatible");
+            parts.headers = fields_to_header_map(&response.headers());
+            Response::new(http::Response::from_parts(parts, response), url.clone())
         }
         Err(e) => return Err(crate::error::request(e)),
     };
 
     Ok(response)
+}
+
+fn fields_to_header_map(fields: &wasi::http::types::Fields) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    let entries = fields.entries();
+    for (name, value) in entries {
+        headers.insert(
+            http::HeaderName::try_from(&name).expect("Invalid header name"),
+            http::HeaderValue::from_bytes(&value).expect("Invalid header value"),
+        );
+    }
+    headers
 }
 
 impl ClientBuilder {
