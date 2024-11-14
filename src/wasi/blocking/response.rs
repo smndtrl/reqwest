@@ -17,8 +17,8 @@ use url::Url;
 
 use super::body::Body;
 
-// use crate::wasi::wasi::http::*;
-use spin_sdk::wit::wasi::http::*;
+use crate::wasi::wit::wasi::http::*;
+// use spin_sdk::wit::wasi::http::*;
 
 /// A Response to a submitted `Request`.
 #[derive(Debug)]

@@ -17,15 +17,13 @@ use crate::redirect::{self, remove_sensitive_headers};
 // use crate::wasi::wasi::http::*;
 // use crate::wasi::wasi::io::*;
 
-use spin_sdk::wit::wasi::{
-    // io::*,
+use crate::wasi::wit::wasi::{
+    io::*,
     http::*,
-    http::types::RequestOptions
+    http::types::RequestOptions,
 };
 
-use spin_executor::bindings::wasi::{
-    io::*,
-};
+// use spin_executor::bindings::wasi::io::*;
 
 #[cfg(feature = "__tls")]
 use crate::tls::{self, TlsBackend};
@@ -691,31 +689,31 @@ impl ClientBuilder {
     }
 }
 
-// impl From<Method> for types::Method {
-//     fn from(value: Method) -> types::Method {
-//         if value == Method::GET {
-//             types::Method::Get
-//         } else if value == Method::POST {
-//             types::Method::Post
-//         } else if value == Method::PUT {
-//             types::Method::Put
-//         } else if value == Method::DELETE {
-//             types::Method::Delete
-//         } else if value == Method::HEAD {
-//             types::Method::Head
-//         } else if value == Method::OPTIONS {
-//             types::Method::Options
-//         } else if value == Method::CONNECT {
-//             types::Method::Connect
-//         } else if value == Method::PATCH {
-//             types::Method::Patch
-//         } else if value == Method::TRACE {
-//             types::Method::Trace
-//         } else {
-//             types::Method::Other(value.as_str().to_string())
-//         }
-//     }
-// }
+impl From<Method> for types::Method {
+    fn from(value: Method) -> types::Method {
+        if value == Method::GET {
+            types::Method::Get
+        } else if value == Method::POST {
+            types::Method::Post
+        } else if value == Method::PUT {
+            types::Method::Put
+        } else if value == Method::DELETE {
+            types::Method::Delete
+        } else if value == Method::HEAD {
+            types::Method::Head
+        } else if value == Method::OPTIONS {
+            types::Method::Options
+        } else if value == Method::CONNECT {
+            types::Method::Connect
+        } else if value == Method::PATCH {
+            types::Method::Patch
+        } else if value == Method::TRACE {
+            types::Method::Trace
+        } else {
+            types::Method::Other(value.as_str().to_string())
+        }
+    }
+}
 
 // impl From<types::ErrorCode> for crate::Error {
 //     fn from(value: types::ErrorCode) -> Self {

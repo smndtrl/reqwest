@@ -4,10 +4,10 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Cursor, Read};
 
-// use crate::wasi::wit::wasi::http::*;
-use spin_sdk::wit::wasi::http::*;
-// use crate::wasi::wit::wasi::http::types::InputStream;
-use spin_sdk::wit::wasi::http::types::InputStream;
+use crate::wasi::wit::wasi::http::*;
+// use spin_sdk::wit::wasi::http::*;
+use crate::wasi::wit::wasi::http::types::InputStream;
+// use spin_sdk::wit::wasi::http::types::InputStream;
 
 /// An asynchronous request body.
 #[derive(Debug)]
