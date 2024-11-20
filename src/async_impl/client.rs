@@ -116,9 +116,9 @@ struct Config {
     root_certs: Vec<Certificate>,
     #[cfg(feature = "__tls")]
     tls_built_in_root_certs: bool,
-    #[cfg(feature = "rustls-tls-webpki-roots")]
+    #[cfg(feature = "rustls-tls-webpki-roots-no-provider")]
     tls_built_in_certs_webpki: bool,
-    #[cfg(feature = "rustls-tls-native-roots")]
+    #[cfg(feature = "rustls-tls-native-roots-no-provider")]
     tls_built_in_certs_native: bool,
     #[cfg(feature = "__rustls")]
     crls: Vec<CertificateRevocationList>,
@@ -144,6 +144,8 @@ struct Config {
     http2_adaptive_window: bool,
     #[cfg(feature = "http2")]
     http2_max_frame_size: Option<u32>,
+    #[cfg(feature = "http2")]
+    http2_max_header_list_size: Option<u32>,
     #[cfg(feature = "http2")]
     http2_keep_alive_interval: Option<Duration>,
     #[cfg(feature = "http2")]
@@ -201,7 +203,7 @@ impl ClientBuilder {
                 connect_timeout: None,
                 connection_verbose: false,
                 pool_idle_timeout: Some(Duration::from_secs(90)),
-                pool_max_idle_per_host: std::usize::MAX,
+                pool_max_idle_per_host: usize::MAX,
                 // TODO: Re-enable default duration once hyper's HttpConnector is fixed
                 // to no longer error when an option fails.
                 tcp_keepalive: None, //Some(Duration::from_secs(60)),
@@ -215,9 +217,9 @@ impl ClientBuilder {
                 root_certs: Vec::new(),
                 #[cfg(feature = "__tls")]
                 tls_built_in_root_certs: true,
-                #[cfg(feature = "rustls-tls-webpki-roots")]
+                #[cfg(feature = "rustls-tls-webpki-roots-no-provider")]
                 tls_built_in_certs_webpki: true,
-                #[cfg(feature = "rustls-tls-native-roots")]
+                #[cfg(feature = "rustls-tls-native-roots-no-provider")]
                 tls_built_in_certs_native: true,
                 #[cfg(any(feature = "native-tls", feature = "__rustls"))]
                 identity: None,
@@ -245,6 +247,8 @@ impl ClientBuilder {
                 http2_adaptive_window: false,
                 #[cfg(feature = "http2")]
                 http2_max_frame_size: None,
+                #[cfg(feature = "http2")]
+                http2_max_header_list_size: None,
                 #[cfg(feature = "http2")]
                 http2_keep_alive_interval: None,
                 #[cfg(feature = "http2")]
@@ -511,12 +515,12 @@ impl ClientBuilder {
                         cert.add_to_rustls(&mut root_cert_store)?;
                     }
 
-                    #[cfg(feature = "rustls-tls-webpki-roots")]
+                    #[cfg(feature = "rustls-tls-webpki-roots-no-provider")]
                     if config.tls_built_in_certs_webpki {
                         root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
                     }
 
-                    #[cfg(feature = "rustls-tls-native-roots")]
+                    #[cfg(feature = "rustls-tls-native-roots-no-provider")]
                     if config.tls_built_in_certs_native {
                         let mut valid_count = 0;
                         let mut invalid_count = 0;
@@ -740,6 +744,9 @@ impl ClientBuilder {
             }
             if let Some(http2_max_frame_size) = config.http2_max_frame_size {
                 builder.http2_max_frame_size(http2_max_frame_size);
+            }
+            if let Some(http2_max_header_list_size) = config.http2_max_header_list_size {
+                builder.http2_max_header_list_size(http2_max_header_list_size);
             }
             if let Some(http2_keep_alive_interval) = config.http2_keep_alive_interval {
                 builder.http2_keep_alive_interval(http2_keep_alive_interval);
@@ -1308,6 +1315,16 @@ impl ClientBuilder {
         self
     }
 
+    /// Sets the maximum size of received header frames for HTTP2.
+    ///
+    /// Default is currently 16KB, but can change.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_header_list_size(mut self, max_header_size_bytes: u32) -> ClientBuilder {
+        self.config.http2_max_header_list_size = Some(max_header_size_bytes);
+        self
+    }
+
     /// Sets an interval for HTTP2 Ping frames should be sent to keep a connection alive.
     ///
     /// Pass `None` to disable HTTP2 keep-alive.
@@ -1490,12 +1507,12 @@ impl ClientBuilder {
     pub fn tls_built_in_root_certs(mut self, tls_built_in_root_certs: bool) -> ClientBuilder {
         self.config.tls_built_in_root_certs = tls_built_in_root_certs;
 
-        #[cfg(feature = "rustls-tls-webpki-roots")]
+        #[cfg(feature = "rustls-tls-webpki-roots-no-provider")]
         {
             self.config.tls_built_in_certs_webpki = tls_built_in_root_certs;
         }
 
-        #[cfg(feature = "rustls-tls-native-roots")]
+        #[cfg(feature = "rustls-tls-native-roots-no-provider")]
         {
             self.config.tls_built_in_certs_native = tls_built_in_root_certs;
         }
@@ -1506,8 +1523,8 @@ impl ClientBuilder {
     /// Sets whether to load webpki root certs with rustls.
     ///
     /// If the feature is enabled, this value is `true` by default.
-    #[cfg(feature = "rustls-tls-webpki-roots")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls-tls-webpki-roots")))]
+    #[cfg(feature = "rustls-tls-webpki-roots-no-provider")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rustls-tls-webpki-roots-no-provider")))]
     pub fn tls_built_in_webpki_certs(mut self, enabled: bool) -> ClientBuilder {
         self.config.tls_built_in_certs_webpki = enabled;
         self
@@ -1516,8 +1533,8 @@ impl ClientBuilder {
     /// Sets whether to load native root certs with rustls.
     ///
     /// If the feature is enabled, this value is `true` by default.
-    #[cfg(feature = "rustls-tls-native-roots")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls-tls-native-roots")))]
+    #[cfg(feature = "rustls-tls-native-roots-no-provider")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rustls-tls-native-roots-no-provider")))]
     pub fn tls_built_in_native_certs(mut self, enabled: bool) -> ClientBuilder {
         self.config.tls_built_in_certs_native = enabled;
         self
@@ -1841,24 +1858,16 @@ impl ClientBuilder {
 
     /// Override DNS resolution for specific domains to a particular IP address.
     ///
-    /// Warning
-    ///
-    /// Since the DNS protocol has no notion of ports, if you wish to send
-    /// traffic to a particular port you must include this port in the URL
-    /// itself, any port in the overridden addr will be ignored and traffic sent
-    /// to the conventional port for the given scheme (e.g. 80 for http).
+    /// Set the port to `0` to use the conventional port for the given scheme (e.g. 80 for http).
+    /// Ports in the URL itself will always be used instead of the port in the overridden addr.
     pub fn resolve(self, domain: &str, addr: SocketAddr) -> ClientBuilder {
         self.resolve_to_addrs(domain, &[addr])
     }
 
     /// Override DNS resolution for specific domains to particular IP addresses.
     ///
-    /// Warning
-    ///
-    /// Since the DNS protocol has no notion of ports, if you wish to send
-    /// traffic to a particular port you must include this port in the URL
-    /// itself, any port in the overridden addresses will be ignored and traffic sent
-    /// to the conventional port for the given scheme (e.g. 80 for http).
+    /// Set the port to `0` to use the conventional port for the given scheme (e.g. 80 for http).
+    /// Ports in the URL itself will always be used instead of the port in the overridden addr.
     pub fn resolve_to_addrs(mut self, domain: &str, addrs: &[SocketAddr]) -> ClientBuilder {
         self.config
             .dns_overrides
